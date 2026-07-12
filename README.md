@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="apiary_hive-logo.png" alt="Apiary Hive logo" width="120">
+</p>
+
 # Apiary Hive
 
 Consolidates term maps from multiple Apiary contributor groups into one canonical vocabulary —
