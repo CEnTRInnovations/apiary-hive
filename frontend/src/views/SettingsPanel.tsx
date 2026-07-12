@@ -12,11 +12,13 @@ interface SettingsPanelProps {
 }
 
 const STORAGE_KEY = 'hive:modelConfig'
+const OWNER_TOKEN_KEY = 'hive:ownerToken'
 
 export function SettingsPanel({ state, dispatch, onClose }: SettingsPanelProps) {
   const [endpoint, setEndpoint] = useState(state.modelConfig?.endpoint ?? '')
   const [model, setModel] = useState(state.modelConfig?.model ?? '')
   const [apiKey, setApiKey] = useState(state.modelConfig?.apiKey ?? '')
+  const [ownerToken, setOwnerToken] = useState('')
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
   const [testError, setTestError] = useState('')
 
@@ -32,6 +34,7 @@ export function SettingsPanel({ state, dispatch, onClose }: SettingsPanelProps) 
         // ignore malformed storage
       }
     }
+    setOwnerToken(localStorage.getItem(OWNER_TOKEN_KEY) ?? '')
   }, [])
 
   function save() {
@@ -43,6 +46,14 @@ export function SettingsPanel({ state, dispatch, onClose }: SettingsPanelProps) 
       dispatch({ type: 'SET_MODEL_CONFIG', config: null })
       localStorage.removeItem(STORAGE_KEY)
     }
+
+    const trimmedToken = ownerToken.trim()
+    if (trimmedToken) {
+      localStorage.setItem(OWNER_TOKEN_KEY, trimmedToken)
+    } else {
+      localStorage.removeItem(OWNER_TOKEN_KEY)
+    }
+
     onClose()
   }
 
@@ -112,6 +123,20 @@ export function SettingsPanel({ state, dispatch, onClose }: SettingsPanelProps) 
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             placeholder="sk-..."
+          />
+        </div>
+
+        <div className="space-y-1.5 pt-2 border-t border-canon-border">
+          <label htmlFor="settings-owner-token" className={labelClass}>
+            Owner access code <span className="normal-case font-sans text-canon-muted">(optional — leave blank unless you operate this deployment)</span>
+          </label>
+          <input
+            id="settings-owner-token"
+            type="password"
+            className={inputClass}
+            value={ownerToken}
+            onChange={(e) => setOwnerToken(e.target.value)}
+            placeholder="unlocks this deployment's default model, if any"
           />
         </div>
 

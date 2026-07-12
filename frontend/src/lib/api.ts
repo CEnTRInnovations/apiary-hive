@@ -1,11 +1,20 @@
 import type { Bundle, ModelConfig, ParsedUpload } from './types'
 
 const BASE = '/api'
+const OWNER_TOKEN_KEY = 'hive:ownerToken'
 
 async function post<T>(path: string, body: unknown): Promise<T> {
+  const ownerToken = localStorage.getItem(OWNER_TOKEN_KEY)
   const resp = await fetch(`${BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // Only meaningful on a deployment where OWNER_ACCESS_TOKEN is set server-side
+      // (see backend/hive/auth.py) — unlocks the shared DO/LM Studio default provider
+      // for the deployment operator. Everyone else's requests simply omit or mismatch
+      // this header and fall through to BYOM as normal.
+      ...(ownerToken ? { 'X-Owner-Token': ownerToken } : {}),
+    },
     body: JSON.stringify(body),
   })
   if (!resp.ok) {

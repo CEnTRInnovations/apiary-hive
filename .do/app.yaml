@@ -21,6 +21,14 @@ services:
   - key: DO_INFERENCE_API_KEY
     type: SECRET
     scope: RUN_TIME
+  # Gates the DO/LM Studio default provider above so only requests carrying the matching
+  # X-Owner-Token header get it — everyone else visiting this deployment must BYO an
+  # endpoint via the Settings panel. Set the actual value via the App Platform dashboard
+  # (never commit it here), then enter the same value under "Owner access code" in your
+  # own Settings panel. See backend/hive/auth.py.
+  - key: OWNER_ACCESS_TOKEN
+    type: SECRET
+    scope: RUN_TIME
 
 - name: frontend
   github:

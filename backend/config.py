@@ -20,5 +20,13 @@ class Settings(BaseSettings):
     studio_lm_base_url: str = "http://127.0.0.1:1234/v1"
     studio_lm_chat_model: str = ""  # empty = not configured; local dev only
 
+    # Gates the server-side default provider (DO/LM Studio) on the *deployed* app.
+    # Anonymous visitors to a shared deployment must always BYO — the fallback above is
+    # meant for the person operating the deployment, not every visitor. A request is only
+    # treated as "the owner" if it sends the matching X-Owner-Token header (see
+    # hive/auth.py). Leave blank to disable the gate entirely (e.g. local dev, or a
+    # single-operator deployment where everyone hitting it *is* you).
+    owner_access_token: str = ""
+
 
 settings = Settings()

@@ -1,7 +1,8 @@
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from config import settings
+from hive.auth import is_owner_request
 from hive.bundle_review import review_bundle
 from hive.bundles import compute_bundles
 from hive.lm import OpenAICompatProvider
@@ -73,7 +74,10 @@ async def compute_bundles_route(body: ComputeRequest) -> list[BundleRead]:
 
 
 @router.post("/bundles/review")
-async def review_bundle_route(body: BundleReviewRequest) -> dict:
+async def review_bundle_route(
+    body: BundleReviewRequest,
+    is_owner: bool = Depends(is_owner_request),
+) -> dict:
     mc = body.llm_config
     if mc and mc.endpoint.strip():
         # User brought their own endpoint via the Settings panel — use it, same as before.
@@ -83,19 +87,25 @@ async def review_bundle_route(body: BundleReviewRequest) -> dict:
             api_key=mc.api_key or None,
             timeout_seconds=settings.llm_timeout_seconds,
         )
-    else:
-        # No per-request config — fall back to this deployment's configured default
-        # (DO_INFERENCE_CHAT_MODEL / STUDIO_LM_CHAT_MODEL; see hive/lm_factory.py).
+    elif is_owner:
+        # No per-request config, but this request carried a valid X-Owner-Token — fall
+        # back to this deployment's configured default (DO_INFERENCE_CHAT_MODEL /
+        # STUDIO_LM_CHAT_MODEL; see hive/lm_factory.py). Anyone else without their own
+        # endpoint hits the "no LLM configured" branch below instead.
         provider = get_default_llm_provider(settings)
         if provider is None:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "No LLM configured. Enter an endpoint in Settings, or ask whoever "
-                    "runs this deployment to set DO_INFERENCE_CHAT_MODEL or "
-                    "STUDIO_LM_CHAT_MODEL."
+                    "No LLM configured. Enter an endpoint in Settings, or set "
+                    "DO_INFERENCE_CHAT_MODEL or STUDIO_LM_CHAT_MODEL on this deployment."
                 ),
             )
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="No LLM configured. Enter an endpoint and model in Settings.",
+        )
     result = await review_bundle(body.bundle_id, body.anchor, body.members, provider)
     return {"ai_review": result}
 
