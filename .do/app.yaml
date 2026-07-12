@@ -1,0 +1,24 @@
+name: apiary-hive
+
+services:
+- name: backend
+  github:
+    repo: CEnTRInnovations/apiary-hive
+    branch: main
+    deploy_on_push: true
+  source_dir: backend
+  dockerfile_path: backend/Dockerfile
+  http_port: 8000
+  routes:
+  - path: /api
+
+- name: frontend
+  github:
+    repo: CEnTRInnovations/apiary-hive
+    branch: main
+    deploy_on_push: true
+  source_dir: frontend
+  dockerfile_path: frontend/Dockerfile
+  http_port: 80
+  routes:
+  - path: /
