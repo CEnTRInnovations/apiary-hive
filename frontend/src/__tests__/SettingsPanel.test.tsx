@@ -19,8 +19,8 @@ const baseState: AppState = {
 }
 
 describe('SettingsPanel', () => {
-  let dispatch: ReturnType<typeof vi.fn>
-  let onClose: ReturnType<typeof vi.fn>
+  let dispatch: ReturnType<typeof vi.fn<(action: AppAction) => void>>
+  let onClose: ReturnType<typeof vi.fn<() => void>>
 
   beforeEach(() => {
     dispatch = vi.fn()
@@ -39,7 +39,7 @@ describe('SettingsPanel', () => {
   })
 
   it('renders "Deployment access" title with only the owner token field', () => {
-    render(<SettingsPanel state={baseState} dispatch={dispatch as React.Dispatch<AppAction>} onClose={onClose} />)
+    render(<SettingsPanel state={baseState} dispatch={dispatch} onClose={onClose} />)
     expect(screen.getByText('Deployment access')).toBeInTheDocument()
     expect(screen.getByLabelText('Owner access code')).toBeInTheDocument()
     expect(screen.queryByLabelText(/Endpoint URL/)).not.toBeInTheDocument()
@@ -48,7 +48,7 @@ describe('SettingsPanel', () => {
   })
 
   it('dispatches SET_OWNER_TOKEN with the trimmed token on Save', () => {
-    render(<SettingsPanel state={baseState} dispatch={dispatch as React.Dispatch<AppAction>} onClose={onClose} />)
+    render(<SettingsPanel state={baseState} dispatch={dispatch} onClose={onClose} />)
     fireEvent.change(screen.getByLabelText('Owner access code'), { target: { value: '  secret123  ' } })
     fireEvent.click(screen.getByText('Save'))
     expect(dispatch).toHaveBeenCalledWith({ type: 'SET_OWNER_TOKEN', token: 'secret123' })
@@ -56,7 +56,7 @@ describe('SettingsPanel', () => {
   })
 
   it('dispatches SET_OWNER_TOKEN with null when the field is cleared', () => {
-    render(<SettingsPanel state={baseState} dispatch={dispatch as React.Dispatch<AppAction>} onClose={onClose} />)
+    render(<SettingsPanel state={baseState} dispatch={dispatch} onClose={onClose} />)
     fireEvent.click(screen.getByText('Save'))
     expect(dispatch).toHaveBeenCalledWith({ type: 'SET_OWNER_TOKEN', token: null })
   })
@@ -66,7 +66,7 @@ describe('SettingsPanel', () => {
       ...baseState,
       modelConfig: { endpoint: 'http://localhost:1234/v1', model: 'llama-3.3-70b', apiKey: '' },
     }
-    render(<SettingsPanel state={state} dispatch={dispatch as React.Dispatch<AppAction>} onClose={onClose} />)
+    render(<SettingsPanel state={state} dispatch={dispatch} onClose={onClose} />)
     expect(screen.queryByText(/will be ignored/)).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Owner access code'), { target: { value: 'secret' } })
     expect(screen.getByText(/will be ignored/)).toBeInTheDocument()
