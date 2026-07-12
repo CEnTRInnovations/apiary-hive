@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://apiary-hive.local/schemas/bee-file-spec.json",
+  "title": "Apiary .bee file",
+  "description": "Specification for the .bee export Apiary must produce for Apiary Hive to ingest via POST /api/validate. Matches parsing in backend/hive/ingest.py:parse_bee_file and frontend/src/lib/bee.ts:parseBeeFile.",
+  "type": "object",
+  "required": ["edges"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Format version, e.g. \"1.0\". Not currently validated by Apiary Hive, but should be present for future compatibility."
+    },
+    "contributor": {
+      "type": "object",
+      "description": "Identifies who/what produced this file. Optional — falls back to the contributor_label/contributor_id form fields on upload if omitted or blank. Required in practice for bulk upload (POST /api/validate called once per file with no form fields), since that's the only source of contributor identity in that flow.",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Display name shown as contributor_label in Apiary Hive (e.g. a hive/group name)."
+        },
+        "id": {
+          "type": "string",
+          "description": "Stable identifier for this contributor group (e.g. a roster ID or short code). Optional — Apiary Hive assigns a sequential id (C01, C02, ...) if omitted or if it collides with an id already in the session. Primarily meaningful for bulk upload, where multiple .bee files are ingested at once with no per-file manual entry."
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "description": "The causal map as a list of directed edges between terms. Must contain at least one edge with non-empty from/to after filtering.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["from", "to"],
+        "properties": {
+          "from": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Source term. Required, non-empty after trimming. Apiary Hive fingerprints it (Unicode NFKC-normalize, lowercase, collapse whitespace) for deduplication, so exact casing/whitespace doesn't need to match other files."
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Target term. Same rules as from."
+          },
+          "weight": {
+            "type": "number",
+            "default": 1,
+            "description": "Edge strength. Optional — defaults to 1 if absent or not a number."
+          },
+          "effect": {
+            "description": "Direction of influence. Accepts 1, -1, \"+\", \"-\", \"+1\", \"-1\", or numeric strings thereof. Anything else (including null/missing/empty) normalizes to 1 (positive).",
+            "anyOf": [
+              { "type": "integer", "enum": [1, -1] },
+              { "type": "string" },
+              { "type": "null" }
+            ],
+            "default": 1
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": "1.0",
+      "contributor": { "label": "Hive B", "id": "C02" },
+      "edges": [
+        { "from": "community", "to": "trust", "weight": 1, "effect": 1 },
+        { "from": "trust", "to": "safety", "weight": 1, "effect": -1 }
+      ]
+    }
+  ]
+}

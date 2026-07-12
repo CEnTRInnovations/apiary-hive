@@ -1,0 +1,18 @@
+.claude/
+.superpowers/
+.DS_Store
+
+# Python (backend/) — no backend/.gitignore exists, so these need to be caught here
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node (frontend/ already has its own .gitignore for node_modules/dist/etc.,
+# but these patterns are harmless as a root-level safety net too)
+node_modules/
+dist/
+
+# Secrets / local env
+.env
+.env.local

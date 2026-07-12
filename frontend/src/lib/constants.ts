@@ -1,0 +1,2 @@
+export const SEM_THRESH_DEFAULT = 0.65
+export const STRUCT_THRESH_DEFAULT = 0.48
