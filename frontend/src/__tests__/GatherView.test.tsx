@@ -12,6 +12,7 @@ const baseState: AppState = {
   semThresh: SEM_THRESH_DEFAULT,
   structThresh: STRUCT_THRESH_DEFAULT,
   modelConfig: null,
+  ownerToken: null,
   stage: 'gather',
   canonicalTerms: [],
   recodedEdges: [],
@@ -215,5 +216,61 @@ describe('GatherView', () => {
     await waitFor(() => expect(dispatch).toHaveBeenCalled())
     const call = dispatch.mock.calls.find((c) => c[0].type === 'ADD_CONTRIBUTORS_BULK')
     expect(call?.[0].entries[0]).toMatchObject({ id: undefined, label: 'unlabeled' })
+  })
+
+  it('BYOM card shows "Not configured" when collapsed with no config or token', () => {
+    render(<GatherView state={baseState} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    expect(screen.getByText('Bring your own AI')).toBeInTheDocument()
+    expect(screen.getByText('Not configured')).toBeInTheDocument()
+  })
+
+  it('BYOM card shows the deployment-default subtext when ownerToken is set', () => {
+    const state = { ...baseState, ownerToken: 'secret' }
+    render(<GatherView state={state} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    expect(screen.getByText("Using this deployment's default model")).toBeInTheDocument()
+  })
+
+  it('BYOM fields are disabled and show the active-token note when ownerToken is set', () => {
+    const state = {
+      ...baseState,
+      ownerToken: 'secret',
+      modelConfig: { endpoint: 'http://localhost:1234/v1', model: 'llama-3.3-70b', apiKey: '' },
+    }
+    render(<GatherView state={state} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    fireEvent.click(screen.getByText('Bring your own AI'))
+    expect(screen.getByLabelText('Endpoint URL')).toBeDisabled()
+    expect(screen.getByLabelText('Model name')).toBeDisabled()
+    expect(screen.getByLabelText(/API key/)).toBeDisabled()
+    expect(screen.getByText(/deployment access code is active/)).toBeInTheDocument()
+  })
+
+  it('BYOM fields re-enable and retain prior values once ownerToken is cleared', () => {
+    const withToken = {
+      ...baseState,
+      ownerToken: 'secret',
+      modelConfig: { endpoint: 'http://localhost:1234/v1', model: 'llama-3.3-70b', apiKey: '' },
+    }
+    const { rerender } = render(<GatherView state={withToken} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    fireEvent.click(screen.getByText('Bring your own AI'))
+    expect(screen.getByLabelText('Endpoint URL')).toBeDisabled()
+
+    const withoutToken = { ...withToken, ownerToken: null }
+    rerender(<GatherView state={withoutToken} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    const endpointInput = screen.getByLabelText('Endpoint URL') as HTMLInputElement
+    expect(endpointInput).not.toBeDisabled()
+    expect(endpointInput.value).toBe('http://localhost:1234/v1')
+  })
+
+  it('committing endpoint+model on blur dispatches SET_MODEL_CONFIG', () => {
+    render(<GatherView state={baseState} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    fireEvent.click(screen.getByText('Bring your own AI'))
+    fireEvent.change(screen.getByLabelText('Endpoint URL'), { target: { value: 'http://localhost:1234/v1' } })
+    fireEvent.blur(screen.getByLabelText('Endpoint URL'))
+    fireEvent.change(screen.getByLabelText('Model name'), { target: { value: 'llama-3.3-70b' } })
+    fireEvent.blur(screen.getByLabelText('Model name'))
+    expect(dispatch).toHaveBeenCalledWith({
+      type: 'SET_MODEL_CONFIG',
+      config: { endpoint: 'http://localhost:1234/v1', model: 'llama-3.3-70b', apiKey: '' },
+    })
   })
 })

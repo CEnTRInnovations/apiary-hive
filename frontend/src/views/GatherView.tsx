@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import type { AppState } from '../lib/types'
+import type { AppState, ModelConfig } from '../lib/types'
 import type { AppAction } from '../lib/state'
-import { validateFile } from '../lib/api'
+import { validateFile, testModel } from '../lib/api'
 import { PhaseHeader } from '../components/hive/PhaseHeader'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
@@ -9,6 +9,8 @@ import { Icon } from '../components/ui/Icon'
 type SlotState = 'idle' | 'uploading' | 'done' | 'error'
 type BulkFileStatus = 'uploading' | 'done' | 'error'
 type GatherMode = 'single' | 'bulk'
+
+const BYOM_STORAGE_KEY = 'hive:modelConfig'
 
 interface BulkFileState {
   name: string
@@ -29,7 +31,16 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
   const [bulkFiles, setBulkFiles] = useState<BulkFileState[]>([])
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
+  const [byomOpen, setByomOpen] = useState(false)
+  const [endpoint, setEndpoint] = useState(state.modelConfig?.endpoint ?? '')
+  const [model, setModel] = useState(state.modelConfig?.model ?? '')
+  const [apiKey, setApiKey] = useState(state.modelConfig?.apiKey ?? '')
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
+  const [testError, setTestError] = useState('')
+
   const hasData = state.contributors.some((c) => c.data !== null)
+  const byomInputClass = 'w-full rounded-control border border-canon-border px-3 py-1.5 text-sm text-canon-foreground placeholder:text-canon-muted/60 focus:outline-none focus:ring-1 focus:ring-canon-denim disabled:opacity-40'
+  const byomLabelClass = 'block font-mono text-[0.64rem] tracking-[0.09em] uppercase text-canon-muted'
 
   async function handleFileChange(contributorId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -64,6 +75,35 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
     if (!newLabel.trim()) return
     dispatch({ type: 'ADD_CONTRIBUTOR', label: newLabel.trim() })
     setNewLabel('')
+  }
+
+  function commitModelConfig(overrides: Partial<ModelConfig> = {}) {
+    const config: ModelConfig = {
+      endpoint: (overrides.endpoint ?? endpoint).trim(),
+      model: (overrides.model ?? model).trim(),
+      apiKey: overrides.apiKey ?? apiKey,
+    }
+    if (config.endpoint && config.model) {
+      dispatch({ type: 'SET_MODEL_CONFIG', config })
+      localStorage.setItem(BYOM_STORAGE_KEY, JSON.stringify(config))
+    } else {
+      dispatch({ type: 'SET_MODEL_CONFIG', config: null })
+      localStorage.removeItem(BYOM_STORAGE_KEY)
+    }
+  }
+
+  async function handleTestConnection() {
+    if (!endpoint || !model) return
+    setTestStatus('testing')
+    setTestError('')
+    try {
+      const result = await testModel({ endpoint, model, apiKey })
+      setTestStatus(result.ok ? 'ok' : 'fail')
+      if (!result.ok) setTestError(result.error ?? 'No response')
+    } catch (err) {
+      setTestStatus('fail')
+      setTestError(err instanceof Error ? err.message : 'Failed')
+    }
   }
 
   async function handleBulkFiles(e: React.ChangeEvent<HTMLInputElement>) {
@@ -144,6 +184,114 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
         >
           Bulk upload (.bee)
         </button>
+      </div>
+
+      {/* Bring your own AI */}
+      <div className="rounded-card border border-canon-border bg-canon-paper-bright">
+        <button
+          type="button"
+          onClick={() => setByomOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-5 py-3 text-left"
+        >
+          <span className="space-y-0.5">
+            <span className="block font-mono text-[0.65rem] font-bold tracking-[0.14em] uppercase text-canon-muted">
+              Bring your own AI
+            </span>
+            <span className="block text-xs text-canon-muted">
+              {state.ownerToken
+                ? "Using this deployment's default model"
+                : state.modelConfig
+                  ? `Using ${state.modelConfig.model} via ${state.modelConfig.endpoint}`
+                  : 'Not configured'}
+            </span>
+          </span>
+          <Icon name={byomOpen ? 'expand_less' : 'expand_more'} size={18} className="text-canon-muted" />
+        </button>
+
+        {byomOpen && (
+          <div className="space-y-4 border-t border-canon-border px-5 py-4">
+            <p className="text-xs text-canon-muted">
+              Apiary Hive can use an AI model to help identify near-duplicate terms during Consolidate.
+              Point it at any OpenAI-compatible endpoint — local (LM Studio, Ollama) or hosted (OpenAI, Groq, etc.).
+              This is optional; Consolidate works without it, using structural matching alone.
+            </p>
+
+            {state.ownerToken && (
+              <p className="text-xs text-canon-ink">
+                A deployment access code is active — clear it in Settings to use your own model.
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <label htmlFor="byom-endpoint" className={byomLabelClass}>Endpoint URL</label>
+              <input
+                id="byom-endpoint"
+                className={byomInputClass}
+                value={endpoint}
+                disabled={Boolean(state.ownerToken)}
+                onChange={(e) => setEndpoint(e.target.value)}
+                onBlur={() => commitModelConfig()}
+                placeholder="http://localhost:1234/v1"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="byom-model" className={byomLabelClass}>Model name</label>
+              <input
+                id="byom-model"
+                className={byomInputClass}
+                value={model}
+                disabled={Boolean(state.ownerToken)}
+                onChange={(e) => setModel(e.target.value)}
+                onBlur={() => commitModelConfig()}
+                placeholder="llama-3.3-70b"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="byom-apikey" className={byomLabelClass}>
+                API key <span className="normal-case font-sans text-canon-muted">(leave blank for local models)</span>
+              </label>
+              <input
+                id="byom-apikey"
+                type="password"
+                className={byomInputClass}
+                value={apiKey}
+                disabled={Boolean(state.ownerToken)}
+                onChange={(e) => setApiKey(e.target.value)}
+                onBlur={() => commitModelConfig()}
+                placeholder="sk-..."
+              />
+            </div>
+
+            <div className="flex gap-2 items-center flex-wrap">
+              {state.ownerToken ? (
+                <span className="text-xs text-canon-muted">
+                  Test connection unavailable while deployment access is active.
+                </span>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleTestConnection}
+                  disabled={!endpoint || !model || testStatus === 'testing'}
+                >
+                  {testStatus === 'testing' ? 'Testing…' : 'Test connection'}
+                </Button>
+              )}
+              {testStatus === 'ok' && (
+                <span className="flex items-center gap-1 text-xs text-canon-forest">
+                  <Icon name="check" size={14} /> Connected
+                </span>
+              )}
+              {testStatus === 'fail' && (
+                <span className="flex items-center gap-1 text-xs text-canon-signal">
+                  <Icon name="close" size={14} /> Couldn't connect — {testError}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {mode === 'single' && (
