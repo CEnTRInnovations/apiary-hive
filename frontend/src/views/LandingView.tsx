@@ -77,7 +77,14 @@ export function LandingView({ state, dispatch, onBegin }: LandingViewProps) {
       {/* Hero */}
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="font-serif text-display font-medium text-canon-foreground">Many hexagons, one hive.</h1>
+          <div className="flex items-center gap-3">
+            <img
+              src="/apiary_hive-logo.png"
+              alt="Apiary Hive"
+              className="h-12 w-12 shrink-0 object-contain"
+            />
+            <h1 className="font-serif text-display font-medium text-canon-foreground">Many hexagons, one hive.</h1>
+          </div>
           <span className="pt-2 whitespace-nowrap font-mono text-[0.68rem] text-canon-muted">
             v0.1 &middot; CEnTRInnovations Open Tool
           </span>
