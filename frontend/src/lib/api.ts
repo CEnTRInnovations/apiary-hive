@@ -72,13 +72,18 @@ export async function reviewBundle(
   bundleId: string,
   anchor: string,
   members: string[],
-  modelConfig: ModelConfig,
+  // Optional — null means "no per-user endpoint configured in Settings," in which case
+  // the backend falls back to this deployment's default provider (DO/LM Studio), if one
+  // is configured server-side. See backend/hive/lm_factory.py.
+  modelConfig: ModelConfig | null,
 ): Promise<{ ai_review: Record<string, unknown> | null }> {
   return post('/bundles/review', {
     bundle_id: bundleId,
     anchor,
     members,
-    llm_config: { endpoint: modelConfig.endpoint, model: modelConfig.model, api_key: modelConfig.apiKey },
+    llm_config: modelConfig
+      ? { endpoint: modelConfig.endpoint, model: modelConfig.model, api_key: modelConfig.apiKey }
+      : null,
   })
 }
 

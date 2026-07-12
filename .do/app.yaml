@@ -11,6 +11,16 @@ services:
   http_port: 8000
   routes:
   - path: /api
+  envs:
+  - key: DO_INFERENCE_CHAT_MODEL
+    value: "openai-gpt-oss-20b"
+    scope: RUN_TIME
+  # Do NOT put the API key value here — set it via the App Platform dashboard
+  # (Settings → backend component → Environment Variables) as an encrypted secret instead,
+  # so it never touches this committed file or your git history.
+  - key: DO_INFERENCE_API_KEY
+    type: SECRET
+    scope: RUN_TIME
 
 - name: frontend
   github:

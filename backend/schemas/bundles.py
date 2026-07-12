@@ -45,7 +45,11 @@ class BundleReviewRequest(BaseModel):
     bundle_id: str
     anchor: str
     members: list[str]
-    llm_config: LLMConfig
+    # Optional — if omitted (or endpoint is blank), the server falls back to whatever
+    # default provider this deployment has configured (see hive/lm_factory.py). This is what
+    # lets an operator configure one deployment-wide DO/LM Studio endpoint instead of asking
+    # every user to bring their own.
+    llm_config: LLMConfig | None = None
 
 
 class TestModelRequest(BaseModel):

@@ -65,7 +65,10 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
   }
 
   async function handleAiReview(bundleId: string) {
-    if (!state.modelConfig) return
+    // No `if (!state.modelConfig) return` guard here — a null modelConfig is valid now.
+    // The backend falls back to this deployment's default provider when the request omits
+    // llm_config; if neither the user nor the deployment has one configured, the request
+    // fails with a clear 400 that surfaces via the catch block below.
     const bundle = state.bundles.find((b) => b.bundle_id === bundleId)
     if (!bundle) return
     setReviewingBundleId(bundleId)
@@ -189,7 +192,7 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
             onRename={(bundleId, label) => dispatch({ type: 'RENAME_BUNDLE', bundleId, label: label || null })}
             onSplit={(bundleId, groups) => dispatch({ type: 'SPLIT_BUNDLE', bundleId, groups, freqMap })}
             onMerge={(sourceBundleId, targetBundleId) => dispatch({ type: 'MERGE_BUNDLE', sourceBundleId, targetBundleId })}
-            onAiReview={state.modelConfig ? () => handleAiReview(b.bundle_id) : undefined}
+            onAiReview={() => handleAiReview(b.bundle_id)}
             isReviewing={reviewingBundleId === b.bundle_id}
           />
         ))}
