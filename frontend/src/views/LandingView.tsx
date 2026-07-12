@@ -73,7 +73,7 @@ export function LandingView({ state, dispatch, onBegin }: LandingViewProps) {
   const slug = (name.trim() || 'apiary-hive').toLowerCase().replace(/\s+/g, '-')
 
   return (
-    <div className="max-w-3xl space-y-8">
+    <div className="w-3/4 mx-auto space-y-8">
       {/* Hero */}
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-4">
