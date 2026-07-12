@@ -8,6 +8,7 @@ __pycache__/
 *.pyc
 .venv/
 .pytest_cache/
+docs/
 
 # Node (frontend/ already has its own .gitignore for node_modules/dist/etc.,
 # but these patterns are harmless as a root-level safety net too)
