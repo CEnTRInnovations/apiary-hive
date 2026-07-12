@@ -9,6 +9,7 @@ import { SettingsPanel } from './views/SettingsPanel'
 import { Icon } from './components/ui/Icon'
 
 const STORAGE_KEY = 'hive:modelConfig'
+const OWNER_TOKEN_KEY = 'hive:ownerToken'
 const STAGES = ['gather', 'consolidate', 'export'] as const
 
 export function App() {
@@ -16,7 +17,6 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showLanding, setShowLanding] = useState(true)
 
-  // Restore modelConfig from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
     if (saved) {
@@ -27,6 +27,8 @@ export function App() {
         // ignore malformed storage
       }
     }
+    const savedToken = localStorage.getItem(OWNER_TOKEN_KEY)
+    if (savedToken) dispatch({ type: 'SET_OWNER_TOKEN', token: savedToken })
   }, []) // ponytail: empty deps intentional — restore once on mount
 
   if (showLanding) {
@@ -55,19 +57,24 @@ export function App() {
           by CEnTRInnovations
         </span>
         <div className="flex-1" />
-        {state.modelConfig && (
+        {state.ownerToken ? (
+          <span className="flex items-center gap-1.5 font-mono text-[0.68rem] text-canon-forest">
+            <span className="h-1.5 w-1.5 rounded-full bg-canon-forest" />
+            AI: deployment default
+          </span>
+        ) : state.modelConfig ? (
           <span className="flex items-center gap-1.5 font-mono text-[0.68rem] text-canon-forest">
             <span className="h-1.5 w-1.5 rounded-full bg-canon-forest" />
             AI: {state.modelConfig.model}
           </span>
-        )}
+        ) : null}
         <button
           type="button"
-          aria-label="AI Settings"
+          aria-label="Deployment access"
           onClick={() => setShowSettings(true)}
           className="flex h-7 w-7 items-center justify-center rounded-full border border-canon-border text-canon-ink hover:bg-canon-sand transition-colors"
         >
-          <Icon name="settings" size={18} />
+          <Icon name="passkey" size={18} />
         </button>
       </header>
 
