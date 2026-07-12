@@ -17,6 +17,19 @@ from schemas.bundles import (
 router = APIRouter()
 
 
+def _default_llm_config(cfg) -> tuple[str, str, str | None] | None:
+    """Endpoint/model/api_key for this deployment's default provider, mirroring
+    get_default_llm_provider's DO-then-LM-Studio priority (hive/lm_factory.py) — as plain
+    strings, since hive.nlp.get_embeddings takes an OpenAI-compat endpoint directly rather
+    than an LLMProvider instance.
+    """
+    if cfg.do_inference_chat_model:
+        return cfg.do_inference_base_url, cfg.do_inference_chat_model, cfg.do_inference_api_key or None
+    if cfg.studio_lm_chat_model:
+        return cfg.studio_lm_base_url, cfg.studio_lm_chat_model, None
+    return None
+
+
 def _to_read(b) -> BundleRead:
     return BundleRead(
         bundle_id=b.id,
@@ -32,7 +45,10 @@ def _to_read(b) -> BundleRead:
 
 
 @router.post("/bundles/compute", response_model=list[BundleRead])
-async def compute_bundles_route(body: ComputeRequest) -> list[BundleRead]:
+async def compute_bundles_route(
+    body: ComputeRequest,
+    is_owner: bool = Depends(is_owner_request),
+) -> list[BundleRead]:
     if not body.edges:
         raise HTTPException(status_code=400, detail="No edges provided.")
 
@@ -45,15 +61,27 @@ async def compute_bundles_route(body: ComputeRequest) -> list[BundleRead]:
         for t in body.terms
     ])
 
+    embedding_endpoint: str | None = None
+    embedding_model: str | None = None
+    embedding_api_key: str | None = None
+    if is_owner:
+        default_config = _default_llm_config(settings)
+        if default_config is not None:
+            embedding_endpoint, embedding_model, embedding_api_key = default_config
+    elif body.llm_config and body.llm_config.endpoint:
+        embedding_endpoint = body.llm_config.endpoint
+        embedding_model = body.llm_config.model
+        embedding_api_key = body.llm_config.api_key or None
+
     embedding_sim = None
-    if body.llm_config and body.llm_config.endpoint:
+    if embedding_endpoint and embedding_model:
         from hive.nlp import cosine_sim_matrix, get_embeddings
         term_list = terms_df["term"].tolist()
         raw = await get_embeddings(
             term_list,
-            endpoint=body.llm_config.endpoint,
-            model=body.llm_config.model,
-            api_key=body.llm_config.api_key or None,
+            endpoint=embedding_endpoint,
+            model=embedding_model,
+            api_key=embedding_api_key,
         )
         if raw is not None:
             matrix = cosine_sim_matrix(raw)
@@ -79,28 +107,27 @@ async def review_bundle_route(
     is_owner: bool = Depends(is_owner_request),
 ) -> dict:
     mc = body.llm_config
-    if mc and mc.endpoint.strip():
-        # User brought their own endpoint via the Settings panel — use it, same as before.
+    if is_owner:
+        # A valid X-Owner-Token always wins over any per-request llm_config — see
+        # docs/specs/byom-relocation-spec.md. Falls back to this deployment's configured
+        # default (DO_INFERENCE_CHAT_MODEL / STUDIO_LM_CHAT_MODEL; see hive/lm_factory.py).
+        provider = get_default_llm_provider(settings)
+        if provider is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No deployment default configured. Ask the operator to set "
+                    "DO_INFERENCE_CHAT_MODEL or STUDIO_LM_CHAT_MODEL, or clear the "
+                    "access code to use your own model."
+                ),
+            )
+    elif mc and mc.endpoint.strip():
         provider = OpenAICompatProvider(
             base_url=mc.endpoint,
             model=mc.model,
             api_key=mc.api_key or None,
             timeout_seconds=settings.llm_timeout_seconds,
         )
-    elif is_owner:
-        # No per-request config, but this request carried a valid X-Owner-Token — fall
-        # back to this deployment's configured default (DO_INFERENCE_CHAT_MODEL /
-        # STUDIO_LM_CHAT_MODEL; see hive/lm_factory.py). Anyone else without their own
-        # endpoint hits the "no LLM configured" branch below instead.
-        provider = get_default_llm_provider(settings)
-        if provider is None:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "No LLM configured. Enter an endpoint in Settings, or set "
-                    "DO_INFERENCE_CHAT_MODEL or STUDIO_LM_CHAT_MODEL on this deployment."
-                ),
-            )
     else:
         raise HTTPException(
             status_code=400,
