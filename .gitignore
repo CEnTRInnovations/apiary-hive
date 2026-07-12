@@ -1,6 +1,7 @@
 .claude/
 .superpowers/
 .DS_Store
+_tmp_*
 
 # Python (backend/) — no backend/.gitignore exists, so these need to be caught here
 __pycache__/
