@@ -12,6 +12,7 @@ const baseState: AppState = {
   semThresh: SEM_THRESH_DEFAULT,
   structThresh: STRUCT_THRESH_DEFAULT,
   modelConfig: null,
+  ownerToken: null,
   stage: 'gather',
   canonicalTerms: [],
   recodedEdges: [],

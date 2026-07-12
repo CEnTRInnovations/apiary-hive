@@ -17,6 +17,7 @@ export type AppAction =
   | { type: 'SET_SEM_THRESH'; value: number }
   | { type: 'SET_STRUCT_THRESH'; value: number }
   | { type: 'SET_MODEL_CONFIG'; config: ModelConfig | null }
+  | { type: 'SET_OWNER_TOKEN'; token: string | null }
   | { type: 'SET_STAGE'; stage: AppState['stage'] }
   | { type: 'FINALIZE' }
   | { type: 'RESET' }
@@ -28,6 +29,7 @@ const initial: AppState = {
   semThresh: SEM_THRESH_DEFAULT,
   structThresh: STRUCT_THRESH_DEFAULT,
   modelConfig: null,
+  ownerToken: null,
   stage: 'gather',
   canonicalTerms: [],
   recodedEdges: [],
@@ -153,6 +155,9 @@ function reducer(state: AppState, action: AppAction): AppState {
 
     case 'SET_MODEL_CONFIG':
       return { ...state, modelConfig: action.config }
+
+    case 'SET_OWNER_TOKEN':
+      return { ...state, ownerToken: action.token }
 
     case 'SET_STAGE':
       return { ...state, stage: action.stage }

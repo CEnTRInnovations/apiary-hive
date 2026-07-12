@@ -51,6 +51,7 @@ export interface AppState {
   semThresh: number
   structThresh: number
   modelConfig: ModelConfig | null
+  ownerToken: string | null
   stage: 'gather' | 'consolidate' | 'export'
   canonicalTerms: TermRow[]
   recodedEdges: EdgeRow[]

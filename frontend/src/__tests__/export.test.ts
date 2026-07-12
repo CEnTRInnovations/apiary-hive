@@ -34,6 +34,7 @@ const mockState: AppState = {
   semThresh: 0.65,
   structThresh: 0.48,
   modelConfig: null,
+  ownerToken: null,
   stage: 'export',
   canonicalTerms: [{ term: 'community', frequency: 2 }],
   recodedEdges: [{ from_term: 'community', to_term: 'trust', weight: 1, effect: 1, composite_id: 'C01' }],
