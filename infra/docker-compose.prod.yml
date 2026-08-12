@@ -1,0 +1,25 @@
+services:
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      DO_INFERENCE_BASE_URL: ${DO_INFERENCE_BASE_URL:-https://inference.do-ai.run/v1}
+      DO_INFERENCE_API_KEY: ${DO_INFERENCE_API_KEY:-}
+      DO_INFERENCE_CHAT_MODEL: ${DO_INFERENCE_CHAT_MODEL:-}
+      OWNER_ACCESS_TOKEN: ${OWNER_ACCESS_TOKEN:-}
+    networks:
+      default: {}
+      centrinnovations-proxy:
+        aliases: [hive-api]
+    restart: always
+
+networks:
+  default:
+    name: apiary_hive_default
+  centrinnovations-proxy:
+    external: true
+
+# Caddy, managed by /opt/centrinnovations, reaches this service by the unique
+# hive-api alias on the shared centrinnovations-proxy network.

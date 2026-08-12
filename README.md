@@ -105,6 +105,78 @@ Backend on `:8000`, frontend (built + served via nginx, proxying `/api/` to the 
 dev server proxies `/api` to `http://localhost:8000` — see `vite.config.ts` — so run the backend
 separately: `cd backend && uvicorn main:app --reload`).
 
+## Production: Cloudflare frontend and droplet API
+
+The production frontend is a Cloudflare Worker that serves the Vite build and
+proxies same-origin `/api/*` requests to the FastAPI service on the shared
+CEnTR droplet. The API remains a conventional Docker service because it handles
+uploads and optional server-side AI credentials.
+
+```text
+hive.centrinnovations.com       Cloudflare Worker (frontend and /api proxy)
+api.hive.centrinnovations.com   Droplet Caddy → Hive FastAPI container
+```
+
+### Deploy the API to the droplet
+
+On the droplet, clone this repository at `/opt/centrinnovations/apiary-hive`.
+Create `infra/.env.prod` from `infra/hive.env.example`, copy the existing
+DigitalOcean inference key and owner access token into it, then start only the
+API service:
+
+```bash
+cd /opt/centrinnovations/apiary-hive/infra
+docker compose --project-name apiary-hive --env-file .env.prod \
+  -f docker-compose.prod.yml up -d --build
+```
+
+The main `/opt/centrinnovations/caddy/Caddyfile` needs this site block:
+
+```caddy
+api.hive.centrinnovations.com {
+    tls {
+        ca https://acme-v02.api.letsencrypt.org/directory
+    }
+    reverse_proxy hive-api:8000
+}
+```
+
+Reload Caddy after saving the file:
+
+```bash
+cd /opt/centrinnovations
+docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+In Cloudflare DNS, create a **DNS-only** `A` record named `api.hive` pointing
+to the droplet's public IP. Confirm the API before moving the frontend:
+
+```bash
+curl -i https://api.hive.centrinnovations.com/api/health
+```
+
+### Deploy the frontend to Cloudflare Workers
+
+Create a Git-connected Worker from `CEnTRInnovations/apiary-hive` with root
+directory `/frontend`:
+
+```text
+Worker name: apiary-hive-web
+Build command: pnpm run cf:build
+Deploy command: pnpm run cf:deploy
+```
+
+Add a runtime Worker variable (not a frontend build variable):
+
+```text
+API_ORIGIN=https://api.hive.centrinnovations.com
+```
+
+After the Worker deployment and API health check succeed, attach
+`hive.centrinnovations.com` as the Worker's custom domain. Keep the existing
+DigitalOcean App Platform deployment intact for rollback until the new site has
+been verified; then destroy the App Platform app to stop its charges.
+
 ## Testing
 
 Backend: `cd backend && pytest`. Frontend: `cd frontend && pnpm test` (Vitest + React Testing
