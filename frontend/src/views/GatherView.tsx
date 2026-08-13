@@ -39,6 +39,10 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
   const [testError, setTestError] = useState('')
 
   const hasData = state.contributors.some((c) => c.data !== null)
+  const hasCompletedUpload =
+    Object.values(slotStates).some((status) => status === 'done') ||
+    bulkFiles.some((file) => file.status === 'done')
+  const canContinue = hasData || hasCompletedUpload
   const byomInputClass = 'w-full rounded-control border border-canon-border px-3 py-1.5 text-sm text-canon-foreground placeholder:text-canon-muted/60 focus:outline-none focus:ring-1 focus:ring-canon-denim disabled:opacity-40'
   const byomLabelClass = 'block font-mono text-[0.64rem] tracking-[0.09em] uppercase text-canon-muted'
 
@@ -75,6 +79,20 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
     if (!newLabel.trim()) return
     dispatch({ type: 'ADD_CONTRIBUTOR', label: newLabel.trim() })
     setNewLabel('')
+  }
+
+  function removeContributor(contributorId: string) {
+    setSlotStates((prev) => {
+      const next = { ...prev }
+      delete next[contributorId]
+      return next
+    })
+    setSlotErrors((prev) => {
+      const next = { ...prev }
+      delete next[contributorId]
+      return next
+    })
+    dispatch({ type: 'REMOVE_CONTRIBUTOR', id: contributorId })
   }
 
   function commitModelConfig(overrides: Partial<ModelConfig> = {}) {
@@ -164,7 +182,10 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
       <div className="flex gap-1 rounded-control border border-canon-border bg-canon-paper-bright p-1 w-fit">
         <button
           type="button"
-          onClick={() => setMode('single')}
+          onClick={() => {
+            setMode('single')
+            setBulkFiles([])
+          }}
           className={
             mode === 'single'
               ? 'rounded-[2px] bg-canon-denim px-3 py-1.5 font-mono text-[0.65rem] uppercase tracking-[0.06em] text-white'
@@ -332,7 +353,7 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
                       </label>
                       <button
                         type="button"
-                        onClick={() => dispatch({ type: 'REMOVE_CONTRIBUTOR', id: c.id })}
+                        onClick={() => removeContributor(c.id)}
                         className="text-canon-muted hover:text-canon-signal"
                         aria-label={`Remove ${c.label}`}
                       >
@@ -448,7 +469,7 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
       <div className="flex gap-3 pt-2">
         <Button
           variant="primary"
-          disabled={!hasData}
+          disabled={!canContinue}
           onClick={() => dispatch({ type: 'SET_STAGE', stage: 'consolidate' })}
         >
           Continue to Consolidate →

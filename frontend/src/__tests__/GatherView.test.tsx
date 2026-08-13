@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { GatherView } from '../views/GatherView'
 import type { AppState } from '../lib/types'
 import type { AppAction } from '../lib/state'
+import { useAppState } from '../lib/state'
 import { SEM_THRESH_DEFAULT, STRUCT_THRESH_DEFAULT } from '../lib/constants'
 
 const baseState: AppState = {
@@ -16,6 +17,13 @@ const baseState: AppState = {
   stage: 'gather',
   canonicalTerms: [],
   recodedEdges: [],
+}
+
+function StatefulGatherView() {
+  const [state, dispatch] = useAppState()
+  return state.stage === 'gather'
+    ? <GatherView state={state} dispatch={dispatch} />
+    : <div>Current stage: {state.stage}</div>
 }
 
 describe('GatherView', () => {
@@ -159,6 +167,8 @@ describe('GatherView', () => {
     )
 
     render(<GatherView state={baseState} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    const continueButton = screen.getByText('Continue to Consolidate →')
+    expect(continueButton).toBeDisabled()
     fireEvent.click(screen.getByText('Bulk upload (.bee)'))
 
     const file = new File(['{}'], 'hive-b.bee', { type: 'application/json' })
@@ -185,6 +195,77 @@ describe('GatherView', () => {
       }),
     )
     await screen.findByText('Added')
+    expect(continueButton).not.toBeDisabled()
+  })
+
+  it('enables Continue when a one-at-a-time .bee upload completes', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: 'VALID',
+          message: 'File validated.',
+          contributor_label: 'Hive A',
+          contributor_id: 'C01',
+          terms: [{ term: 'trust', frequency: 1 }],
+          edges: [{ from_term: 'community', to_term: 'trust', weight: 1, effect: 1 }],
+          n_terms: 1,
+          n_edges: 1,
+          n_positive: 1,
+          n_negative: 0,
+        }),
+      }),
+    )
+    const state = {
+      ...baseState,
+      contributors: [{ id: 'C01', label: 'Hive A', data: null }],
+    }
+
+    render(<GatherView state={state} dispatch={dispatch as React.Dispatch<AppAction>} />)
+    const continueButton = screen.getByText('Continue to Consolidate →')
+    expect(continueButton).toBeDisabled()
+
+    fireEvent.change(document.querySelector('input[type="file"]')!, {
+      target: { files: [new File(['{}'], 'hive-a.bee', { type: 'application/json' })] },
+    })
+
+    await screen.findByText('Uploaded')
+    expect(continueButton).not.toBeDisabled()
+  })
+
+  it('enables Continue after a successful bulk .bee upload updates app state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          status: 'VALID',
+          message: 'File validated.',
+          contributor_label: 'Hive B',
+          contributor_id: 'C02',
+          terms: [{ term: 'trust', frequency: 1 }],
+          edges: [{ from_term: 'community', to_term: 'trust', weight: 1, effect: 1 }],
+          n_terms: 1,
+          n_edges: 1,
+          n_positive: 1,
+          n_negative: 0,
+        }),
+      }),
+    )
+
+    render(<StatefulGatherView />)
+    const continueButton = screen.getByText('Continue to Consolidate →')
+    expect(continueButton).toBeDisabled()
+
+    fireEvent.click(screen.getByText('Bulk upload (.bee)'))
+    fireEvent.change(screen.getByLabelText('Upload multiple .bee files'), {
+      target: { files: [new File(['{}'], 'hive-b.bee', { type: 'application/json' })] },
+    })
+
+    await waitFor(() => expect(continueButton).not.toBeDisabled())
+    fireEvent.click(continueButton)
+    expect(screen.getByText('Current stage: consolidate')).toBeInTheDocument()
   })
 
   it('bulk upload falls back to the filename when a .bee file has no contributor label', async () => {
