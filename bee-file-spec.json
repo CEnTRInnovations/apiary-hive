@@ -25,9 +25,18 @@
         }
       }
     },
+    "dimensions": {
+      "type": "object",
+      "description": "Apiary-authored hint declaring which optional edge dimensions the contributor turned on for this map. Written by Apiary >= the edge-attribute-dimensions release; NOT read by Apiary Hive today (ingest ignores it) — documented here so downstream tooling can rely on it and so a re-export preserves it. Legal only because this schema sets additionalProperties: true. When a dimension is true, the corresponding per-edge field is authoritative even where absent (absent = the contributor left that edge unclassified); when false, treat any stray per-edge value as noise. When the whole block is absent, infer from the edges (any effect of +/-1 => polarity; any weight in 1..3 => magnitude; a pair present in both from/to orders => direction).",
+      "properties": {
+        "polarity":  { "type": "boolean", "description": "Contributor classified edge valence (per-edge `effect` is meaningful)." },
+        "magnitude": { "type": "boolean", "description": "Contributor classified edge strength (per-edge `weight` is meaningful)." },
+        "direction": { "type": "boolean", "description": "Edge list is directed: `from` is the influencing term. A pair the contributor did not orient appears as two edge objects, one each way." }
+      }
+    },
     "edges": {
       "type": "array",
-      "description": "The causal map as a list of directed edges between terms. Must contain at least one edge with non-empty from/to after filtering.",
+      "description": "The causal map as a list of directed edges between terms. Must contain at least one edge with non-empty from/to after filtering. When the top-level `dimensions.direction` is false (or absent and no pair repeats in both orders) the list is undirected and (from, to) / (to, from) are the same edge.",
       "minItems": 1,
       "items": {
         "type": "object",
@@ -68,6 +77,16 @@
       "edges": [
         { "from": "community", "to": "trust", "weight": 1, "effect": 1 },
         { "from": "trust", "to": "safety", "weight": 1, "effect": -1 }
+      ]
+    },
+    {
+      "version": "1.0",
+      "contributor": { "label": "Hive C", "id": "C03" },
+      "dimensions": { "polarity": true, "magnitude": true, "direction": true },
+      "edges": [
+        { "from": "care", "to": "power", "weight": 2, "effect": 1 },
+        { "from": "power", "to": "trust", "weight": 1 },
+        { "from": "trust", "to": "power", "weight": 1 }
       ]
     }
   ]
