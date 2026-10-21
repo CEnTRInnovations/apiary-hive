@@ -20,6 +20,12 @@ class Settings(BaseSettings):
     studio_lm_base_url: str = "http://127.0.0.1:1234/v1"
     studio_lm_chat_model: str = ""  # empty = not configured; local dev only
 
+    # Optional fast pre-filter for bundle review (hive/jev.py): OpenRouter's Decisions API
+    # running TypeSafe's Jev model. Separate from the do_inference/studio_lm tiers above —
+    # it's a classifier, not a chat-completions provider, so it can't reuse OpenAICompatProvider.
+    # Empty = pre-filter disabled; every bundle review falls through to the full LLM call as before.
+    openrouter_api_key: str = ""
+
     # Gates the server-side default provider (DO/LM Studio) on the *deployed* app.
     # Anonymous visitors to a shared deployment must always BYO — the fallback above is
     # meant for the person operating the deployment, not every visitor. A request is only

@@ -133,7 +133,10 @@ async def review_bundle_route(
             status_code=400,
             detail="No LLM configured. Enter an endpoint and model in Settings.",
         )
-    result = await review_bundle(body.bundle_id, body.anchor, body.members, provider)
+    result = await review_bundle(
+        body.bundle_id, body.anchor, body.members, provider,
+        jev_api_key=settings.openrouter_api_key or None,
+    )
     return {"ai_review": result}
 
 

@@ -2,7 +2,12 @@ import json
 import logging
 from typing import Any
 
+from hive.jev import classify_bundle_recommendation
+
 logger = logging.getLogger(__name__)
+
+# ponytail: single threshold, tune against real bundle data once this is live
+JEV_CONFIDENT = 0.85
 
 
 async def review_bundle(
@@ -10,6 +15,7 @@ async def review_bundle(
     anchor: str,
     members: list[str],
     provider: Any,
+    jev_api_key: str | None = None,
 ) -> dict | None:
     """Ask the LLM provider to review a bundle and return structured JSON.
 
@@ -17,7 +23,28 @@ async def review_bundle(
     preserved_if_consolidated, flattened_if_consolidated, suggested_splits,
     discussion_questions.
     Returns None if the provider fails, or {'raw': ...} if JSON parsing fails.
+
+    jev_api_key: optional OpenRouter key. When set, a fast Jev pre-filter runs first — if
+    it comes back confident, that verdict is returned without the full LLM call. Jev has
+    no rationale/suggested_splits/discussion_questions (it never generates text), so those
+    come back empty on the fast path.
     """
+    if jev_api_key:
+        fast = await classify_bundle_recommendation(anchor, members, jev_api_key)
+        if fast is not None:
+            confidence = fast["probabilities"][fast["choice"]]
+            if confidence >= JEV_CONFIDENT:
+                return {
+                    "recommendation": fast["choice"],
+                    "confidence": "HIGH",
+                    "rationale": None,
+                    "preserved_if_consolidated": None,
+                    "flattened_if_consolidated": None,
+                    "suggested_splits": [],
+                    "discussion_questions": [],
+                    "jev_confidence": confidence,
+                }
+
     prompt = (
         f"You are reviewing a bundle of terms from a community-engaged research dataset "
         f"to help a research team decide whether to accept, split, or reject it.\n\n"
