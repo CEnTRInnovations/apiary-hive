@@ -20,3 +20,4 @@ dist/
 # Secrets / local env
 .env
 .env.local
+.gstack/
