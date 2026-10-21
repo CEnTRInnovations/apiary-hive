@@ -3,6 +3,9 @@
   "name": "apiary-hive-web",
   "main": "worker.ts",
   "compatibility_date": "2026-08-12",
+  "vars": {
+    "API_ORIGIN": "https://api.hive.centrinnovations.com"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",

@@ -296,7 +296,7 @@ export function BundlingSensitivityPanel({
           <p className="text-xs text-canon-muted font-sans">
             No data yet —{' '}
             <a href="gather" className="underline text-canon-denim">
-              upload CSV files in Gather
+              upload .bee or CSV files in Gather
             </a>{' '}
             first.
           </p>
