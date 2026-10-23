@@ -24,7 +24,23 @@ async def test_jev_confident_skips_llm_call(monkeypatch):
 
     assert result["recommendation"] == "ACCEPT"
     assert result["jev_confidence"] == 0.93
+    assert result["suggested_label"] is None
     assert provider.called is False
+
+
+async def test_llm_review_passes_through_suggested_label(monkeypatch):
+    provider = StubProvider(
+        '{"recommendation": "ACCEPT", "confidence": "HIGH", "rationale": "r", '
+        '"preserved_if_consolidated": "p", "flattened_if_consolidated": "f", '
+        '"suggested_splits": [], "discussion_questions": [], '
+        '"suggested_label": "Institutional trust"}'
+    )
+
+    result = await bundle_review.review_bundle(
+        "b_001", "community", ["community", "trust"], provider, jev_api_key=None,
+    )
+
+    assert result["suggested_label"] == "Institutional trust"
 
 
 async def test_jev_unconfident_falls_through_to_llm(monkeypatch):

@@ -69,15 +69,18 @@ type SuggestedSplit = { label: string; members: string[] }
 function AiReviewContent({
   json,
   onAcceptRecommendation,
+  onUseSuggestedLabel,
 }: {
   json: Record<string, unknown>
   onAcceptRecommendation?: (decision: Decision, suggestedSplits: SuggestedSplit[]) => void
+  onUseSuggestedLabel?: (label: string) => void
 }) {
   const recommendation = typeof json.recommendation === 'string' ? json.recommendation : null
   const confidence     = typeof json.confidence     === 'string' ? json.confidence     : null
   const rationale      = typeof json.rationale      === 'string' ? json.rationale      : null
   const preserved      = typeof json.preserved_if_consolidated === 'string' ? json.preserved_if_consolidated : null
   const flattened      = typeof json.flattened_if_consolidated === 'string' ? json.flattened_if_consolidated : null
+  const suggestedLabel = typeof json.suggested_label === 'string' ? json.suggested_label : null
   const raw            = typeof json.raw            === 'string' ? json.raw            : null
 
   const suggestedSplits: SuggestedSplit[] = Array.isArray(json.suggested_splits)
@@ -94,7 +97,7 @@ function AiReviewContent({
     ? (json.discussion_questions as unknown[]).filter((q): q is string => typeof q === 'string')
     : []
 
-  if (!recommendation && !rationale && !raw) return null
+  if (!recommendation && !rationale && !raw && !suggestedLabel) return null
 
   const canAcceptRecommendation =
     !!onAcceptRecommendation &&
@@ -120,6 +123,19 @@ function AiReviewContent({
           ) : undefined
         }
       >
+        {suggestedLabel && (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-canon-foreground">
+              <span className="font-semibold">Suggested title:</span> {suggestedLabel}
+            </p>
+            {onUseSuggestedLabel && (
+              <Button variant="ghost" size="sm" onClick={() => onUseSuggestedLabel(suggestedLabel)}>
+                Use
+              </Button>
+            )}
+          </div>
+        )}
+
         {rationale && (
           <div>
             <p className="text-xs font-semibold text-canon-foreground mb-1">Rationale</p>
@@ -488,6 +504,7 @@ export function BundleCard({
         <AiReviewContent
           json={bundle.ai_review_json}
           onAcceptRecommendation={handleAcceptAiRecommendation}
+          onUseSuggestedLabel={(label) => onRename(bundle.bundle_id, label)}
         />
       )}
     </div>

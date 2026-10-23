@@ -21,13 +21,13 @@ async def review_bundle(
 
     Returns a dict with keys: recommendation, confidence, rationale,
     preserved_if_consolidated, flattened_if_consolidated, suggested_splits,
-    discussion_questions.
+    discussion_questions, suggested_label.
     Returns None if the provider fails, or {'raw': ...} if JSON parsing fails.
 
     jev_api_key: optional OpenRouter key. When set, a fast Jev pre-filter runs first — if
     it comes back confident, that verdict is returned without the full LLM call. Jev has
-    no rationale/suggested_splits/discussion_questions (it never generates text), so those
-    come back empty on the fast path.
+    no rationale/suggested_splits/discussion_questions/suggested_label (it never generates
+    text), so those come back empty/null on the fast path.
     """
     if jev_api_key:
         fast = await classify_bundle_recommendation(anchor, members, jev_api_key)
@@ -42,6 +42,7 @@ async def review_bundle(
                     "flattened_if_consolidated": None,
                     "suggested_splits": [],
                     "discussion_questions": [],
+                    "suggested_label": None,
                     "jev_confidence": confidence,
                 }
 
@@ -61,7 +62,9 @@ async def review_bundle(
         '- "suggested_splits": if recommending SPLIT, an array of objects with "label" (string) '
         'and "members" (string array) keys showing how to group the terms; otherwise an empty array\n'
         '- "discussion_questions": an array of 2-3 questions to help the research team discuss '
-        'this bundle\n\n'
+        'this bundle\n'
+        '- "suggested_label": a short (2-4 word) human-readable name for this bundle as a '
+        'whole, capturing the shared concept across all members\n\n'
         "Return only valid JSON with no markdown, no code fences, no extra text."
     )
     # LM Studio and OpenAI-compatible servers support response_format for constrained
@@ -93,11 +96,12 @@ async def review_bundle(
                         },
                     },
                     "discussion_questions": {"type": "array", "items": {"type": "string"}},
+                    "suggested_label": {"type": "string"},
                 },
                 "required": [
                     "recommendation", "confidence", "rationale",
                     "preserved_if_consolidated", "flattened_if_consolidated",
-                    "suggested_splits", "discussion_questions",
+                    "suggested_splits", "discussion_questions", "suggested_label",
                 ],
                 "additionalProperties": False,
             },
