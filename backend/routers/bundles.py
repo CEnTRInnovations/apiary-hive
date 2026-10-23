@@ -41,6 +41,7 @@ def _to_read(b) -> BundleRead:
         struct=b.struct,
         semantic=b.semantic,
         ai_review_json=b.ai_review,
+        weak_pairs=b.weak_pairs,
     )
 
 

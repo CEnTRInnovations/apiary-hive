@@ -23,6 +23,11 @@ class Bundle:
     struct: float
     semantic: float
     ai_review: dict | None = field(default=None)
+    # Member pairs that never cleared struct_thresh or sem_thresh on their own — present only
+    # because some other member chained them in via connected_components (single-linkage).
+    # Non-empty means this bundle hasn't been fully pairwise-verified; see docs/method notes
+    # on chaining. Does not change which bundles get formed — detection only.
+    weak_pairs: list[tuple[str, str]] = field(default_factory=list)
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
@@ -94,6 +99,7 @@ def compute_bundles(
 
         max_struct = 0.0
         max_sem = 0.0
+        weak_pairs: list[tuple[str, str]] = []
         for m1 in members:
             for m2 in members:
                 if m1 >= m2:
@@ -102,6 +108,8 @@ def compute_bundles(
                 sc = pair_scores.get(key, (0.0, 0.0))
                 max_struct = max(max_struct, sc[0])
                 max_sem = max(max_sem, sc[1])
+                if sc[0] < struct_thresh and sc[1] < sem_thresh:
+                    weak_pairs.append(key)
 
         sim_score = max(max_struct, max_sem)
         bundles.append(
@@ -115,6 +123,7 @@ def compute_bundles(
                 struct=max_struct,
                 semantic=max_sem,
                 ai_review=None,
+                weak_pairs=sorted(weak_pairs),
             )
         )
 

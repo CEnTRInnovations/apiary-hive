@@ -8,6 +8,7 @@ export interface Bundle {
   struct: number
   semantic: number
   ai_review_json: Record<string, unknown> | null
+  weak_pairs: [string, string][]
 }
 
 export interface EdgeRow {

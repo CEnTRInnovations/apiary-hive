@@ -39,6 +39,7 @@ class BundleRead(BaseModel):
     struct: float
     semantic: float
     ai_review_json: dict | None = None
+    weak_pairs: list[tuple[str, str]] = []
 
 
 class BundleReviewRequest(BaseModel):
