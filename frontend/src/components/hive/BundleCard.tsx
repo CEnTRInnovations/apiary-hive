@@ -246,6 +246,7 @@ export function BundleCard({
 
   const isSingleton = bundle.members.length === 1
   const showSplitPanel = bundle.decision === 'split' && !isSingleton && !splitDismissed
+  const weakTerms = new Set(bundle.weak_pairs.flat())
   const otherBundles = allBundles.filter((b) => b.bundle_id !== bundle.bundle_id)
   const bundlesForAdd = otherBundles.filter((b) => b.members.length > 1)
   const termsForCombine = otherBundles.filter((b) => b.members.length === 1)
@@ -344,12 +345,37 @@ export function BundleCard({
         {bundle.members.map((m) => (
           <span
             key={m}
-            className="text-xs bg-canon-sand border border-canon-border px-2 py-0.5 rounded-full"
+            title={
+              weakTerms.has(m)
+                ? 'Never directly verified similar to every other member — chained in via another term'
+                : undefined
+            }
+            className={cn(
+              'text-xs px-2 py-0.5 rounded-full border',
+              weakTerms.has(m)
+                ? 'bg-canon-clay/10 border-canon-clay border-dashed'
+                : 'bg-canon-sand border-canon-border',
+            )}
           >
             {m}
           </span>
         ))}
       </div>
+
+      {/* ── Chained-but-unverified pairs (single-linkage) ── */}
+      {bundle.weak_pairs.length > 0 && (
+        <div
+          data-testid="weak-pairs-notice"
+          className="flex items-start gap-1.5 text-xs text-canon-clay bg-canon-clay/[0.08] border border-canon-clay/30 rounded px-2 py-1.5"
+        >
+          <Icon name="warning" size={14} className="shrink-0 mt-0.5" />
+          <p>
+            {bundle.weak_pairs.length === 1 ? 'This pair was' : `These ${bundle.weak_pairs.length} pairs were`} never
+            directly verified similar — grouped only because another member chained them in:{' '}
+            {bundle.weak_pairs.map(([a, b]) => `${a} ↔ ${b}`).join(', ')}
+          </p>
+        </div>
+      )}
 
       {/* ── Decision buttons + singleton merge triggers + AI Review (all inline) ── */}
       <div className="flex flex-wrap gap-2 pt-1">

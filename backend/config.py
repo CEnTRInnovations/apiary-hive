@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     # the Jev pre-filter below.
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_chat_model: str = "mistralai/mistral-small-3.2-24b-instruct"
-    openrouter_embed_model: str = "mistralai/mistral-embed-2312"
+    openrouter_embed_model: str = "nvidia/nemotron-3-embed-1b:free"
 
     # Shared OpenRouter key: powers both the owner-gated default provider above and the
     # fast pre-filter for bundle review (hive/jev.py, TypeSafe's Jev model via OpenRouter's
