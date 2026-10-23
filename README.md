@@ -119,15 +119,25 @@ api.hive.centrinnovations.com   Droplet Caddy → Hive FastAPI container
 
 ### Deploy the API to the droplet
 
-On the droplet, clone this repository at `/opt/centrinnovations/apiary-hive`.
-Create `infra/.env.prod` from `infra/hive.env.example`, copy the existing
-OpenRouter key and owner access token into it, then start only the
-API service:
+One-time setup: on the droplet, clone this repository at
+`/opt/centrinnovations/apiary-hive`, then create `infra/.env.prod` from
+`infra/hive.env.example` and copy in the existing OpenRouter key and owner
+access token. Add the `HIVE_DEPLOY_SSH_KEY` and `HIVE_DEPLOY_HOST` secrets to
+this repository (Settings → Secrets and variables → Actions) so the deploy
+workflow can reach the droplet, mirroring the other CEnTR apps'
+`<APP>_DEPLOY_SSH_KEY`/`<APP>_DEPLOY_HOST` secrets.
+
+Pushing to `main` under `backend/`, `infra/docker-compose.prod.yml`, or the
+workflow file itself then builds the API image, pushes it to
+`ghcr.io/centrinnovations/apiary-hive-api`, and has the droplet pull and
+restart it (`.github/workflows/deploy-hive.yml`) — no manual SSH step needed
+after that. To deploy by hand instead:
 
 ```bash
-cd /opt/centrinnovations/apiary-hive/infra
-docker compose --project-name apiary-hive --env-file .env.prod \
-  -f docker-compose.prod.yml up -d --build
+ssh root@<droplet-host> \
+  'cd /opt/centrinnovations/apiary-hive && git fetch origin main && git reset --hard origin/main && \
+   docker compose -p apiary-hive --env-file infra/.env.prod -f infra/docker-compose.prod.yml pull && \
+   docker compose -p apiary-hive --env-file infra/.env.prod -f infra/docker-compose.prod.yml up -d'
 ```
 
 The main `/opt/centrinnovations/caddy/Caddyfile` needs this site block:
