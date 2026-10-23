@@ -93,9 +93,9 @@ async def test_compute_bundles_owner_token_uses_default_llm_config(monkeypatch):
     import hive.nlp as nlp_module
 
     monkeypatch.setattr(settings, "owner_access_token", "secret-token")
-    monkeypatch.setattr(settings, "do_inference_chat_model", "default-embed-model")
-    monkeypatch.setattr(settings, "do_inference_base_url", "http://default-endpoint/v1")
-    monkeypatch.setattr(settings, "do_inference_api_key", "")
+    monkeypatch.setattr(settings, "openrouter_embed_model", "default-embed-model")
+    monkeypatch.setattr(settings, "openrouter_base_url", "http://default-endpoint/v1")
+    monkeypatch.setattr(settings, "openrouter_api_key", "default-key")
 
     seen_kwargs = {}
 
@@ -125,5 +125,5 @@ async def test_compute_bundles_owner_token_uses_default_llm_config(monkeypatch):
     assert seen_kwargs == {
         "endpoint": "http://default-endpoint/v1",
         "model": "default-embed-model",
-        "api_key": None,
+        "api_key": "default-key",
     }

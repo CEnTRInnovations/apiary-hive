@@ -5,11 +5,10 @@ services:
       dockerfile: Dockerfile
     environment:
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
-      DO_INFERENCE_BASE_URL: ${DO_INFERENCE_BASE_URL:-https://inference.do-ai.run/v1}
-      DO_INFERENCE_API_KEY: ${DO_INFERENCE_API_KEY:-}
-      DO_INFERENCE_CHAT_MODEL: ${DO_INFERENCE_CHAT_MODEL:-}
       OWNER_ACCESS_TOKEN: ${OWNER_ACCESS_TOKEN:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_CHAT_MODEL: ${OPENROUTER_CHAT_MODEL:-mistralai/mistral-small}
+      OPENROUTER_EMBED_MODEL: ${OPENROUTER_EMBED_MODEL:-mistralai/mistral-embed}
     networks:
       default: {}
       centrinnovations-proxy:

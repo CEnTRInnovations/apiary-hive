@@ -6,24 +6,18 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 30.0
 
     # Server-side default LLM provider — used only when a request doesn't supply its own
-    # llm_config (i.e. the user hasn't entered a BYO endpoint in the Settings panel). Priority
-    # mirrors CEnTR*CANON's convention (apps/api/config.py + canon/lm_factory.py in
-    # centrcanonapp-next): DigitalOcean Serverless Inference first, then local LM Studio for
-    # dev. Unlike CANON, there is no Bedrock tier here — Apiary Hive has no AWS/boto3
-    # dependency today, and adding one is a real scope decision (new cloud dependency + AWS
-    # credential surface), not something to add silently. If you want that third fallback
-    # tier, mirror BedrockProvider from centrcanonapp-next's canon/lm.py into hive/lm.py.
-    do_inference_base_url: str = "https://inference.do-ai.run/v1"
-    do_inference_api_key: str = ""
-    do_inference_chat_model: str = ""  # empty = not configured
+    # llm_config (i.e. the user hasn't entered a BYO endpoint in the Settings panel) and
+    # carries a valid X-Owner-Token (see hive/auth.py). Backed by OpenRouter, same key as
+    # the Jev pre-filter below.
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_chat_model: str = "mistralai/mistral-small"
+    openrouter_embed_model: str = "mistralai/mistral-embed"
 
-    studio_lm_base_url: str = "http://127.0.0.1:1234/v1"
-    studio_lm_chat_model: str = ""  # empty = not configured; local dev only
-
-    # Optional fast pre-filter for bundle review (hive/jev.py): OpenRouter's Decisions API
-    # running TypeSafe's Jev model. Separate from the do_inference/studio_lm tiers above —
-    # it's a classifier, not a chat-completions provider, so it can't reuse OpenAICompatProvider.
-    # Empty = pre-filter disabled; every bundle review falls through to the full LLM call as before.
+    # Shared OpenRouter key: powers both the owner-gated default provider above and the
+    # fast pre-filter for bundle review (hive/jev.py, TypeSafe's Jev model via OpenRouter's
+    # Decisions API — a classifier, not a chat-completions call, so it can't reuse
+    # OpenAICompatProvider). Empty = both disabled; everyone falls through to BYOM / the
+    # full LLM call as before.
     openrouter_api_key: str = ""
 
     # Gates the server-side default provider (DO/LM Studio) on the *deployed* app.

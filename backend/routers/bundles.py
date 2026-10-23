@@ -18,16 +18,14 @@ router = APIRouter()
 
 
 def _default_llm_config(cfg) -> tuple[str, str, str | None] | None:
-    """Endpoint/model/api_key for this deployment's default provider, mirroring
-    get_default_llm_provider's DO-then-LM-Studio priority (hive/lm_factory.py) — as plain
-    strings, since hive.nlp.get_embeddings takes an OpenAI-compat endpoint directly rather
-    than an LLMProvider instance.
+    """Endpoint/model/api_key for this deployment's default embedding provider, mirroring
+    get_default_llm_provider's OpenRouter backing (hive/lm_factory.py) — as plain strings,
+    since hive.nlp.get_embeddings takes an OpenAI-compat endpoint directly rather than an
+    LLMProvider instance.
     """
-    if cfg.do_inference_chat_model:
-        return cfg.do_inference_base_url, cfg.do_inference_chat_model, cfg.do_inference_api_key or None
-    if cfg.studio_lm_chat_model:
-        return cfg.studio_lm_base_url, cfg.studio_lm_chat_model, None
-    return None
+    if not cfg.openrouter_api_key:
+        return None
+    return cfg.openrouter_base_url, cfg.openrouter_embed_model, cfg.openrouter_api_key
 
 
 def _to_read(b) -> BundleRead:
@@ -111,15 +109,14 @@ async def review_bundle_route(
     if is_owner:
         # A valid X-Owner-Token always wins over any per-request llm_config — see
         # docs/specs/byom-relocation-spec.md. Falls back to this deployment's configured
-        # default (DO_INFERENCE_CHAT_MODEL / STUDIO_LM_CHAT_MODEL; see hive/lm_factory.py).
+        # OpenRouter default (OPENROUTER_API_KEY; see hive/lm_factory.py).
         provider = get_default_llm_provider(settings)
         if provider is None:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     "No deployment default configured. Ask the operator to set "
-                    "DO_INFERENCE_CHAT_MODEL or STUDIO_LM_CHAT_MODEL, or clear the "
-                    "access code to use your own model."
+                    "OPENROUTER_API_KEY, or clear the access code to use your own model."
                 ),
             )
     elif mc and mc.endpoint.strip():

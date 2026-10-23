@@ -121,7 +121,7 @@ api.hive.centrinnovations.com   Droplet Caddy → Hive FastAPI container
 
 On the droplet, clone this repository at `/opt/centrinnovations/apiary-hive`.
 Create `infra/.env.prod` from `infra/hive.env.example`, copy the existing
-DigitalOcean inference key and owner access token into it, then start only the
+OpenRouter key and owner access token into it, then start only the
 API service:
 
 ```bash
