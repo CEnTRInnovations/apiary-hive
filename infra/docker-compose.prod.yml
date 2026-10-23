@@ -9,6 +9,7 @@ services:
       DO_INFERENCE_API_KEY: ${DO_INFERENCE_API_KEY:-}
       DO_INFERENCE_CHAT_MODEL: ${DO_INFERENCE_CHAT_MODEL:-}
       OWNER_ACCESS_TOKEN: ${OWNER_ACCESS_TOKEN:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     networks:
       default: {}
       centrinnovations-proxy:
