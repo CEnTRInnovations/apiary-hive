@@ -29,6 +29,7 @@ const mockState: AppState = {
       struct: 0.5,
       semantic: 0.7,
       ai_review_json: null,
+      weak_pairs: [],
     },
   ],
   semThresh: 0.65,

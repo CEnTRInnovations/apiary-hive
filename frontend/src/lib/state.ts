@@ -117,10 +117,10 @@ function reducer(state: AppState, action: AppAction): AppState {
         const anchor = members.reduce((best, t) =>
           (action.freqMap[t] ?? 0) > (action.freqMap[best] ?? 0) ? t : best,
         )
-        newBundles.push({ bundle_id: nextId(), anchor, label: null, members, decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null })
+        newBundles.push({ bundle_id: nextId(), anchor, label: null, members, decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [] })
       }
       for (const term of groups['Singleton'] || []) {
-        newBundles.push({ bundle_id: nextId(), anchor: term, label: null, members: [term], decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null })
+        newBundles.push({ bundle_id: nextId(), anchor: term, label: null, members: [term], decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [] })
       }
       const remaining = state.bundles.filter((b) => b.bundle_id !== action.bundleId)
       return { ...state, bundles: [...remaining, ...newBundles].sort((a, b) => a.bundle_id.localeCompare(b.bundle_id)) }
