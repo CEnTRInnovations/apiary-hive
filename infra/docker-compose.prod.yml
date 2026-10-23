@@ -5,8 +5,8 @@ services:
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
       OWNER_ACCESS_TOKEN: ${OWNER_ACCESS_TOKEN:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
-      OPENROUTER_CHAT_MODEL: ${OPENROUTER_CHAT_MODEL:-mistralai/mistral-small}
-      OPENROUTER_EMBED_MODEL: ${OPENROUTER_EMBED_MODEL:-mistralai/mistral-embed}
+      OPENROUTER_CHAT_MODEL: ${OPENROUTER_CHAT_MODEL:-mistralai/mistral-small-3.2-24b-instruct}
+      OPENROUTER_EMBED_MODEL: ${OPENROUTER_EMBED_MODEL:-mistralai/mistral-embed-2312}
     networks:
       default: {}
       centrinnovations-proxy:

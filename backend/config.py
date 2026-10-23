@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     # carries a valid X-Owner-Token (see hive/auth.py). Backed by OpenRouter, same key as
     # the Jev pre-filter below.
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_chat_model: str = "mistralai/mistral-small"
-    openrouter_embed_model: str = "mistralai/mistral-embed"
+    openrouter_chat_model: str = "mistralai/mistral-small-3.2-24b-instruct"
+    openrouter_embed_model: str = "mistralai/mistral-embed-2312"
 
     # Shared OpenRouter key: powers both the owner-gated default provider above and the
     # fast pre-filter for bundle review (hive/jev.py, TypeSafe's Jev model via OpenRouter's
