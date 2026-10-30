@@ -48,6 +48,22 @@ export function buildProvenanceJson(state: AppState): string {
   return JSON.stringify(doc, null, 2)
 }
 
+export function buildBeeJson(state: AppState): string {
+  const doc = {
+    contributor: {
+      id: state.project.name ? state.project.name.toLowerCase().replace(/\s+/g, '-') : 'apiary-hive',
+      label: state.project.name || 'Apiary Hive',
+    },
+    edges: state.recodedEdges.map((e) => ({
+      from: e.from_term,
+      to: e.to_term,
+      weight: e.weight,
+      effect: e.effect,
+    })),
+  }
+  return JSON.stringify(doc, null, 2)
+}
+
 const csvQuote = (s: string) => `"${s.replace(/"/g, '""')}"`
 
 export function buildTermsCsv(state: AppState): string {

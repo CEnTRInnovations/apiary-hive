@@ -1,6 +1,6 @@
 import type { AppState } from '../lib/types'
 import type { AppAction } from '../lib/state'
-import { buildProvenanceJson, buildTermsCsv, buildEdgesCsv, downloadBlob } from '../lib/export'
+import { buildProvenanceJson, buildBeeJson, buildTermsCsv, buildEdgesCsv, downloadBlob } from '../lib/export'
 import { PhaseHeader } from '../components/hive/PhaseHeader'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -54,6 +54,20 @@ export function ExportView({ state, dispatch }: ExportViewProps) {
             }
           >
             Download {slug}-provenance.hive
+          </Button>
+        </div>
+
+        <div className="border-t border-canon-border pt-4 space-y-2">
+          <p className="text-sm font-semibold text-canon-foreground">Apiary .bee</p>
+          <p className="text-xs text-canon-muted">
+            Canonical edges, re-packaged as a .bee file so the consolidated hive can be loaded back into Apiary and
+            displayed as hexagons.
+          </p>
+          <Button
+            variant="ghost"
+            onClick={() => downloadBlob(buildBeeJson(state), `${slug}-consolidated.bee`, 'application/json')}
+          >
+            Download {slug}-consolidated.bee
           </Button>
         </div>
 
