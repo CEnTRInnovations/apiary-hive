@@ -30,7 +30,16 @@ def test_compute_bundles_flags_chained_pair_as_weak():
     # only end up in the same bundle because "accountability" is similar to both. That's
     # single-linkage chaining; weak_pairs should flag the trust/transparency pair as
     # never pairwise-verified.
-    edges = pd.DataFrame({"from": ["x"], "to": ["y"], "weight": [1.0]})
+    # accountability shares a structural neighbor with each of trust/transparency (but
+    # trust and transparency share no structural neighbor), and embeddings agree — so
+    # both struct and sem clear threshold for the two "real" pairs (edges now require
+    # both, not either).
+    edges = pd.DataFrame({
+        "from": ["trust", "accountability", "accountability"],
+        "to":   ["foo",   "foo",            "bar"],
+    })
+    edges = pd.concat([edges, pd.DataFrame({"from": ["transparency"], "to": ["bar"]})])
+    edges["weight"] = 1.0
     terms = pd.DataFrame({
         "term": ["trust", "accountability", "transparency"],
         "frequency": [3, 2, 1],
@@ -50,7 +59,8 @@ def test_compute_bundles_flags_chained_pair_as_weak():
 
 
 def test_compute_bundles_fully_verified_bundle_has_no_weak_pairs():
-    edges = pd.DataFrame({"from": ["x"], "to": ["y"], "weight": [1.0]})
+    # a and b share a structural neighbor (z) so struct also clears threshold, not just sem.
+    edges = pd.DataFrame({"from": ["a", "b"], "to": ["z", "z"], "weight": [1.0, 1.0]})
     terms = pd.DataFrame({"term": ["a", "b"], "frequency": [1, 1]})
     embedding_sim = {("a", "b"): 0.9}
     result = compute_bundles(

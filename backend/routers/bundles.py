@@ -17,17 +17,6 @@ from schemas.bundles import (
 router = APIRouter()
 
 
-def _default_llm_config(cfg) -> tuple[str, str, str | None] | None:
-    """Endpoint/model/api_key for this deployment's default embedding provider, mirroring
-    get_default_llm_provider's OpenRouter backing (hive/lm_factory.py) — as plain strings,
-    since hive.nlp.get_embeddings takes an OpenAI-compat endpoint directly rather than an
-    LLMProvider instance.
-    """
-    if not cfg.openrouter_api_key:
-        return None
-    return cfg.openrouter_base_url, cfg.openrouter_embed_model, cfg.openrouter_api_key
-
-
 def _to_read(b) -> BundleRead:
     return BundleRead(
         bundle_id=b.id,
@@ -60,27 +49,25 @@ async def compute_bundles_route(
         for t in body.terms
     ])
 
-    embedding_endpoint: str | None = None
-    embedding_model: str | None = None
-    embedding_api_key: str | None = None
-    if is_owner:
-        default_config = _default_llm_config(settings)
-        if default_config is not None:
-            embedding_endpoint, embedding_model, embedding_api_key = default_config
-    elif body.llm_config and body.llm_config.endpoint:
-        embedding_endpoint = body.llm_config.endpoint
-        embedding_model = body.llm_config.model
-        embedding_api_key = body.llm_config.api_key or None
-
+    term_list = terms_df["term"].tolist()
     embedding_sim = None
-    if embedding_endpoint and embedding_model:
+    if is_owner:
+        # Decisions API is OpenRouter-specific (alpha endpoint, not a generic OpenAI-compat
+        # route), so this path only applies to the deployment's own default provider, not BYOM.
+        if settings.openrouter_api_key:
+            from hive.nlp import get_decision_sim
+            embedding_sim = await get_decision_sim(
+                term_list,
+                model=settings.openrouter_decision_model,
+                api_key=settings.openrouter_api_key,
+            )
+    elif body.llm_config and body.llm_config.endpoint:
         from hive.nlp import cosine_sim_matrix, get_embeddings
-        term_list = terms_df["term"].tolist()
         raw = await get_embeddings(
             term_list,
-            endpoint=embedding_endpoint,
-            model=embedding_model,
-            api_key=embedding_api_key,
+            endpoint=body.llm_config.endpoint,
+            model=body.llm_config.model,
+            api_key=body.llm_config.api_key or None,
         )
         if raw is not None:
             matrix = cosine_sim_matrix(raw)

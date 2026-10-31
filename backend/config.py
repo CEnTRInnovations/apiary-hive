@@ -12,6 +12,12 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_chat_model: str = "mistralai/mistral-small-3.2-24b-instruct"
     openrouter_embed_model: str = "nvidia/nemotron-3-embed-1b:free"
+    # Pairwise term-synonym signal for bundling (hive/nlp.get_decision_sim), via the same
+    # alpha Decisions API as the Jev pre-filter below — a calibrated yes/no probability per
+    # pair instead of embedding cosine distance. Owner-gated default only (see
+    # routers/bundles.py); BYOM requests still use get_embeddings since Decisions is
+    # OpenRouter-specific, not a generic OpenAI-compat endpoint.
+    openrouter_decision_model: str = "liquid/d1.1"
 
     # Shared OpenRouter key: powers both the owner-gated default provider above and the
     # fast pre-filter for bundle review (hive/jev.py, TypeSafe's Jev model via OpenRouter's

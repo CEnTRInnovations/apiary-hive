@@ -1,4 +1,5 @@
 import logging
+from itertools import combinations
 from typing import Any
 
 import numpy as np
@@ -6,6 +7,25 @@ import pandas as pd
 from rapidfuzz import distance as rfd
 
 logger = logging.getLogger(__name__)
+
+# Same alpha Decisions API endpoint hive/jev.py already calls for bundle review.
+from hive.jev import JEV_DECISIONS_URL as DECISIONS_URL  # noqa: E402
+
+SAME_TERM_QUESTION = {
+    "same_term": {
+        "type": "noul",
+        "instructions": (
+            "Two terms were both drawn as nodes in a causal concept map. Do they refer to "
+            "the same underlying concept (a spelling variant, synonym, or trivial "
+            "rewording), rather than two distinct — even if closely related or causally "
+            "connected — concepts?"
+        ),
+        "criteria": {
+            "true": "Same concept — a spelling variant, synonym, or trivial rewording.",
+            "false": "Distinct concepts, even if closely related or causally connected.",
+        },
+    }
+}
 
 
 def detect_synonyms(
@@ -64,3 +84,57 @@ async def get_embeddings(
     except Exception as exc:
         logger.warning("Embeddings call failed: %s", exc)
         return None
+
+
+async def _decision_pair_sim(
+    client: Any, model: str, headers: dict[str, str], a: str, b: str
+) -> float | None:
+    payload = {
+        "model": model,
+        "questions": SAME_TERM_QUESTION,
+        "state": {"term_a": a, "term_b": b},
+    }
+    try:
+        resp = await client.post(DECISIONS_URL, json=payload, headers=headers)
+        resp.raise_for_status()
+        return float(resp.json()["answers"]["same_term"]["noul"])
+    except Exception as exc:
+        logger.warning("Decisions call failed for (%r, %r): %s", a, b, exc)
+        return None
+
+
+async def get_decision_sim(
+    terms: list[str],
+    model: str,
+    api_key: str | None,
+    max_concurrency: int = 10,
+) -> dict[tuple[str, str], float] | None:
+    """Pairwise synonym-probability via OpenRouter's alpha Decisions API — one 'noul'
+    (yes/no) question per unordered term pair, returning a calibrated probability
+    instead of a string/vector-distance proxy. One call per pair (O(n^2)); fine at
+    dozens of terms, not meant for hundreds. Returns {(min(a,b), max(a,b)): probability},
+    same shape as embedding_sim, or None if every call failed.
+    """
+    import asyncio
+
+    import httpx
+
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    pairs = list(combinations(sorted(set(terms)), 2))
+    if not pairs:
+        return {}
+
+    sem = asyncio.Semaphore(max_concurrency)
+
+    async def bounded(a: str, b: str, client: Any) -> tuple[tuple[str, str], float | None]:
+        async with sem:
+            return (a, b), await _decision_pair_sim(client, model, headers, a, b)
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        results = await asyncio.gather(*(bounded(a, b, client) for a, b in pairs))
+
+    out = {key: prob for key, prob in results if prob is not None}
+    return out or None

@@ -225,20 +225,20 @@ export function BundlingSensitivityPanel({
         <SliderControl
           id="sem-thresh"
           label="Meaning Similarity"
-          algorithmName="Jaro-Winkler"
-          algorithmExplanation="Jaro-Winkler measures how similar two strings are character by character, with extra weight given to matching prefixes."
-          algorithmAriaLabel="What is Jaro-Winkler similarity?"
-          description="Do terms refer to the same concept, even if worded differently?"
+          algorithmName="AI judgment"
+          algorithmExplanation="An AI model is asked directly whether two terms mean the same thing and returns a confidence score (0–1). Falls back to character-by-character string similarity (Jaro-Winkler) only when no AI provider is configured for the request."
+          algorithmAriaLabel="How is meaning similarity determined?"
+          description="Do terms refer to the same concept, even if worded differently? This is the threshold that decides bundling."
           value={semThresh}
           onChange={onSemThreshChange}
         />
         <SliderControl
           id="struct-thresh"
           label="Word Overlap"
-          algorithmName="Jaccard"
-          algorithmExplanation="Jaccard similarity measures the proportion of shared words between two terms."
-          algorithmAriaLabel="What is Jaccard similarity?"
-          description="Do terms share the same words, even if arranged differently?"
+          algorithmName="Jaccard, reference only"
+          algorithmExplanation="Jaccard similarity measures how much two terms' map neighbors overlap — shown per bundle for context, but no longer decides which terms get bundled (it produced false matches between causally-adjacent-but-distinct terms, like an airport and its pilot)."
+          algorithmAriaLabel="How is word overlap determined, and does it affect bundling?"
+          description="Do terms share map neighbors, even if the terms themselves differ? Shown for reference — doesn't currently affect which terms bundle."
           value={structThresh}
           onChange={onStructThreshChange}
         />

@@ -23,10 +23,10 @@ class Bundle:
     struct: float
     semantic: float
     ai_review: dict | None = field(default=None)
-    # Member pairs that never cleared struct_thresh or sem_thresh on their own — present only
-    # because some other member chained them in via connected_components (single-linkage).
-    # Non-empty means this bundle hasn't been fully pairwise-verified; see docs/method notes
-    # on chaining. Does not change which bundles get formed — detection only.
+    # Member pairs that never cleared sem_thresh on their own — present only because some
+    # other member chained them in via connected_components (single-linkage). Non-empty
+    # means this bundle hasn't been fully pairwise-verified; see docs/method notes on
+    # chaining. Does not change which bundles get formed — detection only.
     weak_pairs: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -52,7 +52,11 @@ def compute_bundles(
     struct_thresh: float = STRUCT_THRESH_DEFAULT,
     embedding_sim: dict[tuple[str, str], float] | None = None,
 ) -> list[Bundle]:
-    """Compute bundles from edges and terms using structural + semantic similarity.
+    """Compute bundles from edges and terms, gated on semantic similarity.
+
+    struct_thresh is accepted for API compatibility and struct is still computed/returned
+    on each Bundle for display, but it no longer gates bundling (see ponytail note at the
+    edge-formation site) — only sem_thresh does.
 
     Returns a list of Bundle objects sorted by sim_score descending.
     Terms that do not cluster with any other term appear as singleton bundles
@@ -83,7 +87,18 @@ def compute_bundles(
                 sem = embedding_sim[key]
             else:
                 sem = rfd.JaroWinkler.normalized_similarity(a, b)
-            if struct >= struct_thresh or sem >= sem_thresh:
+            # ponytail: semantic-only gate. struct (causal-graph neighbor overlap) never
+            # produced a correct positive in testing — only false positives (airport/pilot,
+            # driver/road) that AND had to suppress. Dropping it was a regression when the
+            # semantic axis was raw Jaro-Winkler (letter overlap ≈ orthographic noise too),
+            # but with a real decision-model probability as sem (see hive/nlp.get_decision_sim)
+            # that pairing is gone — the decision score alone had zero false positives and
+            # sensible recall across 12 test pairs. struct is still computed/returned for
+            # display, just not a gate. Caveat: when no embedding_sim entry exists for a pair
+            # (no decision/embedding call configured or it failed), sem falls back to raw JW
+            # below, which reintroduces the false-positive risk struct used to catch — see
+            # routers/bundles.py for when embedding_sim is populated.
+            if sem >= sem_thresh:
                 g.add_edge(a, b)
                 pair_scores[key] = (struct, sem)
 
@@ -108,7 +123,7 @@ def compute_bundles(
                 sc = pair_scores.get(key, (0.0, 0.0))
                 max_struct = max(max_struct, sc[0])
                 max_sem = max(max_sem, sc[1])
-                if sc[0] < struct_thresh and sc[1] < sem_thresh:
+                if sc[1] < sem_thresh:
                     weak_pairs.append(key)
 
         sim_score = max(max_struct, max_sem)

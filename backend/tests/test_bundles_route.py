@@ -88,22 +88,21 @@ async def test_review_bundle_owner_token_takes_precedence_over_byom(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_compute_bundles_owner_token_uses_default_llm_config(monkeypatch):
+async def test_compute_bundles_owner_token_uses_default_decision_model(monkeypatch):
     from config import settings
     import hive.nlp as nlp_module
 
     monkeypatch.setattr(settings, "owner_access_token", "secret-token")
-    monkeypatch.setattr(settings, "openrouter_embed_model", "default-embed-model")
-    monkeypatch.setattr(settings, "openrouter_base_url", "http://default-endpoint/v1")
+    monkeypatch.setattr(settings, "openrouter_decision_model", "default-decision-model")
     monkeypatch.setattr(settings, "openrouter_api_key", "default-key")
 
     seen_kwargs = {}
 
-    async def fake_get_embeddings(terms, endpoint, model, api_key):
-        seen_kwargs.update(endpoint=endpoint, model=model, api_key=api_key)
-        return {t: [0.1, 0.2] for t in terms}
+    async def fake_get_decision_sim(terms, model, api_key):
+        seen_kwargs.update(model=model, api_key=api_key)
+        return {}
 
-    monkeypatch.setattr(nlp_module, "get_embeddings", fake_get_embeddings)
+    monkeypatch.setattr(nlp_module, "get_decision_sim", fake_get_decision_sim)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.post(
@@ -123,7 +122,6 @@ async def test_compute_bundles_owner_token_uses_default_llm_config(monkeypatch):
         )
     assert resp.status_code == 200
     assert seen_kwargs == {
-        "endpoint": "http://default-endpoint/v1",
-        "model": "default-embed-model",
+        "model": "default-decision-model",
         "api_key": "default-key",
     }
