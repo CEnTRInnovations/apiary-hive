@@ -197,6 +197,11 @@ function reducer(state: AppState, action: AppAction): AppState {
         frequency: freqMap[term] ?? 0,
       }))
       const recodedEdges = allEdges
+        // Rejected terms never go through `remap` (only accept/no-decision bundles do),
+        // so without this filter their raw name would survive unchanged into
+        // recodedEdges — "removed" from canonicalTerms but still wired into every
+        // exported edge list (.bee, .hive provenance, CSV). Drop them before remapping.
+        .filter((e) => !rejectedTerms.has(e.from_term) && !rejectedTerms.has(e.to_term))
         .map((e) => ({
           ...e,
           from_term: remap[e.from_term] ?? e.from_term,
