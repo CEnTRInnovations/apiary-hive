@@ -88,6 +88,39 @@ async def test_review_bundle_owner_token_takes_precedence_over_byom(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_compute_bundles_owner_uses_ai_chosen_anchor(monkeypatch):
+    from config import settings
+    import hive.nlp as nlp_module
+
+    monkeypatch.setattr(settings, "owner_access_token", "secret-token")
+    monkeypatch.setattr(settings, "openrouter_api_key", "default-key")
+
+    async def fake_get_decision_sim(terms, model, api_key):
+        return {("community", "trust"): 0.9}
+
+    seen_members = []
+
+    async def fake_choose_anchor(members, model, api_key):
+        seen_members.append(sorted(members))
+        return "community"  # not the frequency-based pick — "trust" has freq=2
+
+    monkeypatch.setattr(nlp_module, "get_decision_sim", fake_get_decision_sim)
+    monkeypatch.setattr(nlp_module, "choose_anchor", fake_choose_anchor)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/api/bundles/compute",
+            headers={"X-Owner-Token": "secret-token"},
+            json={"edges": EDGES, "terms": TERMS, "sem_thresh": 0.65, "struct_thresh": 0.48},
+        )
+    assert resp.status_code == 200
+    bundles = resp.json()
+    bundle = next(b for b in bundles if set(b["members"]) == {"community", "trust"})
+    assert bundle["anchor"] == "community"
+    assert seen_members == [["community", "trust"]]
+
+
+@pytest.mark.asyncio
 async def test_compute_bundles_owner_token_uses_default_decision_model(monkeypatch):
     from config import settings
     import hive.nlp as nlp_module

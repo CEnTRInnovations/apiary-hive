@@ -84,6 +84,23 @@ async def compute_bundles_route(
         struct_thresh=body.struct_thresh,
         embedding_sim=embedding_sim,
     )
+
+    # Let the AI pick the clearest label for each bundle instead of defaulting to whichever
+    # member was most frequent across uploads — frequency tracks popularity, not clarity.
+    # Owner-gated like the decision-sim call above; a human can always rename it afterward.
+    if is_owner and settings.openrouter_api_key:
+        import asyncio
+
+        from hive.nlp import choose_anchor
+        multi = [b for b in bundles if len(b.members) > 1]
+        choices = await asyncio.gather(*(
+            choose_anchor(b.members, model=settings.openrouter_decision_model, api_key=settings.openrouter_api_key)
+            for b in multi
+        ))
+        for b, choice in zip(multi, choices):
+            if choice is not None:
+                b.anchor = choice
+
     return [_to_read(b) for b in bundles]
 
 

@@ -138,3 +138,42 @@ async def get_decision_sim(
 
     out = {key: prob for key, prob in results if prob is not None}
     return out or None
+
+
+async def choose_anchor(members: list[str], model: str, api_key: str | None) -> str | None:
+    """Ask the Decisions API which bundle member best labels the whole group — a 'choice'
+    question over the members themselves, same shape as hive/jev.py's ACCEPT/SPLIT/REJECT
+    call. Returns the chosen member, or None on failure or an out-of-set answer (caller
+    should keep its own fallback, e.g. frequency, in that case).
+    """
+    import httpx
+
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    payload = {
+        "model": model,
+        "questions": {
+            "anchor": {
+                "type": "choice",
+                "instructions": (
+                    "These terms were grouped as referring to the same underlying concept. "
+                    "Which one is the clearest, most canonical label for the group as a "
+                    "whole — the term a reader unfamiliar with the others would best "
+                    "recognize this concept by?"
+                ),
+                "criteria": {m: m for m in members},
+            }
+        },
+        "state": {"bundle_members": members},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(DECISIONS_URL, json=payload, headers=headers)
+            resp.raise_for_status()
+            choice = resp.json()["answers"]["anchor"]["choice"]
+    except Exception as exc:
+        logger.warning("Decisions anchor call failed for %r: %s", members, exc)
+        return None
+    return choice if choice in members else None
