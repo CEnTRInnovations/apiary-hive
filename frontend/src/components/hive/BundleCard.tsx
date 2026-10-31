@@ -301,6 +301,125 @@ export function BundleCard({
     'border-canon-border text-canon-foreground hover:border-canon-denim hover:bg-canon-sand',
   )
 
+  // A singleton "bundle" (no duplicate found for this term) doesn't need the full
+  // Accept/Split/AI-Review card — Accept is already the default outcome at Finalize,
+  // and Split has nothing to split. Just the term, an optional rename, Reject (to
+  // drop it from the canonical vocabulary), and a way to manually merge it with
+  // something the algorithm missed.
+  if (isSingleton) {
+    return (
+      <div
+        data-bundle-card=""
+        data-singleton=""
+        className="flex flex-wrap items-center gap-2 rounded-control border border-canon-border bg-canon-paper-bright px-3 py-1.5"
+      >
+        {renaming ? (
+          <input
+            type="text"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={handleRenameBlur}
+            onKeyDown={handleRenameKeyDown}
+            className="text-sm font-medium text-canon-foreground border-b border-canon-border bg-transparent outline-none"
+            aria-label="Rename term"
+            autoFocus
+          />
+        ) : (
+          <span className="text-sm font-medium text-canon-foreground">
+            {bundle.label || bundle.anchor}
+          </span>
+        )}
+
+        <div className="ml-auto flex items-center gap-1.5">
+          {mergeMode === null && (
+            <>
+              <button
+                type="button"
+                aria-label="Rename"
+                onClick={() => {
+                  setRenaming(true)
+                  setRenameValue(bundle.label ?? '')
+                }}
+                className="p-1 rounded text-canon-muted hover:text-canon-foreground hover:bg-canon-sand transition-colors"
+              >
+                <Icon name="edit" size={14} />
+              </button>
+              {bundlesForAdd.length > 0 && (
+                <button type="button" onClick={() => setMergeMode('add')} className={decisionButtonClass}>
+                  Add to Bundle
+                </button>
+              )}
+              {termsForCombine.length > 0 && (
+                <button type="button" onClick={() => setMergeMode('combine')} className={decisionButtonClass}>
+                  Combine With…
+                </button>
+              )}
+              <button
+                type="button"
+                aria-pressed={bundle.decision === 'reject'}
+                onClick={() => onDecision(bundle.bundle_id, 'reject')}
+                className={cn(
+                  decisionButtonClass,
+                  bundle.decision === 'reject' && 'bg-canon-signal text-white border-canon-signal',
+                )}
+              >
+                <Icon name="cancel" size={14} />
+                Reject
+              </button>
+            </>
+          )}
+        </div>
+
+        {mergeMode !== null && (
+          <div className="w-full flex items-center gap-2 pt-1">
+            <select
+              value={mergeTarget}
+              onChange={(e) => setMergeTarget(e.target.value)}
+              aria-label={mergeMode === 'add' ? 'Select target bundle' : 'Select target term'}
+              className="text-sm border border-canon-border rounded-control px-2 py-1 bg-canon-paper-bright text-canon-foreground flex-1"
+            >
+              <option value="">{mergeMode === 'add' ? 'Select bundle…' : 'Select term…'}</option>
+              {mergeMode === 'add'
+                ? bundlesForAdd.map((b) => (
+                    <option key={b.bundle_id} value={b.bundle_id}>
+                      {b.label || b.anchor} ({b.members.length} terms)
+                    </option>
+                  ))
+                : termsForCombine.map((b) => (
+                    <option key={b.bundle_id} value={b.bundle_id}>
+                      {b.members[0]}
+                    </option>
+                  ))}
+            </select>
+            <button
+              type="button"
+              disabled={!mergeTarget}
+              onClick={handleConfirmMerge}
+              className={cn(
+                'px-3 py-1 text-xs rounded border',
+                mergeTarget
+                  ? 'bg-canon-denim text-white border-canon-denim'
+                  : 'opacity-50 cursor-not-allowed border-canon-border text-canon-muted',
+              )}
+            >
+              Confirm
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMergeMode(null)
+                setMergeTarget('')
+              }}
+              className="px-3 py-1 text-xs rounded border border-canon-border text-canon-foreground hover:bg-canon-sand"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div data-bundle-card="" className="rounded-card border border-canon-border bg-canon-paper-bright p-4 space-y-3">
       {/* ── Header ── */}
@@ -377,7 +496,7 @@ export function BundleCard({
         </div>
       )}
 
-      {/* ── Decision buttons + singleton merge triggers + AI Review (all inline) ── */}
+      {/* ── Decision buttons + AI Review (all inline) ── */}
       <div className="flex flex-wrap gap-2 pt-1">
         {DECISIONS.map(({ value, label, icon, activeClass }) => {
           const isActive = bundle.decision === value
@@ -401,19 +520,7 @@ export function BundleCard({
           )
         })}
 
-        {isSingleton && mergeMode === null && bundlesForAdd.length > 0 && (
-          <button type="button" onClick={() => setMergeMode('add')} className={decisionButtonClass}>
-            Add to Bundle
-          </button>
-        )}
-
-        {isSingleton && mergeMode === null && termsForCombine.length > 0 && (
-          <button type="button" onClick={() => setMergeMode('combine')} className={decisionButtonClass}>
-            Combine With…
-          </button>
-        )}
-
-        {onAiReview && !isSingleton && (
+        {onAiReview && (
           <button
             type="button"
             onClick={onAiReview}
@@ -425,59 +532,6 @@ export function BundleCard({
           </button>
         )}
       </div>
-
-      {/* ── Singleton merge panel ── */}
-      {isSingleton && mergeMode !== null && (
-        <div className="pt-1 space-y-2">
-          <p className="text-xs text-canon-muted">
-            {mergeMode === 'add' ? 'Add to existing bundle:' : 'Combine with:'}
-          </p>
-          <select
-            value={mergeTarget}
-            onChange={(e) => setMergeTarget(e.target.value)}
-            aria-label={mergeMode === 'add' ? 'Select target bundle' : 'Select target term'}
-            className="text-sm border border-canon-border rounded-control px-2 py-1 bg-canon-paper-bright text-canon-foreground w-full"
-          >
-            <option value="">{mergeMode === 'add' ? 'Select bundle…' : 'Select term…'}</option>
-            {mergeMode === 'add'
-              ? bundlesForAdd.map((b) => (
-                  <option key={b.bundle_id} value={b.bundle_id}>
-                    {b.label || b.anchor} ({b.members.length} terms)
-                  </option>
-                ))
-              : termsForCombine.map((b) => (
-                  <option key={b.bundle_id} value={b.bundle_id}>
-                    {b.members[0]}
-                  </option>
-                ))}
-          </select>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={!mergeTarget}
-              onClick={handleConfirmMerge}
-              className={cn(
-                'px-3 py-1 text-xs rounded border',
-                mergeTarget
-                  ? 'bg-canon-denim text-white border-canon-denim'
-                  : 'opacity-50 cursor-not-allowed border-canon-border text-canon-muted',
-              )}
-            >
-              Confirm
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMergeMode(null)
-                setMergeTarget('')
-              }}
-              className="px-3 py-1 text-xs rounded border border-canon-border text-canon-foreground hover:bg-canon-sand"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── Interactive split panel ── */}
       {showSplitPanel && (

@@ -66,4 +66,73 @@ describe('BundleCard', () => {
 
     expect(screen.queryByText('Suggested title:')).not.toBeInTheDocument()
   })
+
+  it('renders a compact row for a singleton, with Reject but no Accept/Split', () => {
+    const singleton: Bundle = { ...baseBundle, members: ['ticket'], anchor: 'ticket' }
+
+    render(
+      <BundleCard
+        bundle={singleton}
+        allBundles={[singleton]}
+        onDecision={noop}
+        onRename={noop}
+        onSplit={noop}
+        onMerge={noop}
+      />,
+    )
+
+    expect(screen.getByText('ticket')).toBeInTheDocument()
+    expect(screen.getByText('Reject')).toBeInTheDocument()
+    expect(screen.queryByText('Accept')).not.toBeInTheDocument()
+    expect(screen.queryByText('Split')).not.toBeInTheDocument()
+    expect(screen.queryByText('AI Review')).not.toBeInTheDocument()
+  })
+
+  it('offers Combine With… for a singleton when other singletons exist, not otherwise', () => {
+    const singleton: Bundle = { ...baseBundle, bundle_id: 'b_001', members: ['ticket'], anchor: 'ticket' }
+    const otherSingleton: Bundle = { ...baseBundle, bundle_id: 'b_002', members: ['tickets'], anchor: 'tickets' }
+
+    const { rerender } = render(
+      <BundleCard
+        bundle={singleton}
+        allBundles={[singleton]}
+        onDecision={noop}
+        onRename={noop}
+        onSplit={noop}
+        onMerge={noop}
+      />,
+    )
+    expect(screen.queryByText('Combine With…')).not.toBeInTheDocument()
+
+    rerender(
+      <BundleCard
+        bundle={singleton}
+        allBundles={[singleton, otherSingleton]}
+        onDecision={noop}
+        onRename={noop}
+        onSplit={noop}
+        onMerge={noop}
+      />,
+    )
+    expect(screen.getByText('Combine With…')).toBeInTheDocument()
+  })
+
+  it('reports reject for a singleton via onDecision', () => {
+    const onDecision = vi.fn()
+    const singleton: Bundle = { ...baseBundle, members: ['ticket'], anchor: 'ticket' }
+
+    render(
+      <BundleCard
+        bundle={singleton}
+        allBundles={[singleton]}
+        onDecision={onDecision}
+        onRename={noop}
+        onSplit={noop}
+        onMerge={noop}
+      />,
+    )
+
+    fireEvent.click(screen.getByText('Reject'))
+    expect(onDecision).toHaveBeenCalledWith('b_001', 'reject')
+  })
 })

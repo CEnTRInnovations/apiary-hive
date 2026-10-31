@@ -181,22 +181,52 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
 
       {reviewError && <p className="text-canon-signal text-sm mt-2">{reviewError}</p>}
 
-      {/* Bundle cards */}
-      <div className="space-y-3">
-        {state.bundles.map((b) => (
-          <BundleCard
-            key={b.bundle_id}
-            bundle={b}
-            allBundles={state.bundles}
-            onDecision={(bundleId, decision) => dispatch({ type: 'SET_BUNDLE_DECISION', bundleId, decision })}
-            onRename={(bundleId, label) => dispatch({ type: 'RENAME_BUNDLE', bundleId, label: label || null })}
-            onSplit={(bundleId, groups) => dispatch({ type: 'SPLIT_BUNDLE', bundleId, groups, freqMap })}
-            onMerge={(sourceBundleId, targetBundleId) => dispatch({ type: 'MERGE_BUNDLE', sourceBundleId, targetBundleId })}
-            onAiReview={() => handleAiReview(b.bundle_id)}
-            isReviewing={reviewingBundleId === b.bundle_id}
-          />
-        ))}
-      </div>
+      {/* Bundle cards — real bundles (2+ terms) get full review cards; terms with no
+          duplicate found collapse into a compact list below, so a mostly-singleton
+          result (the common, correct case) doesn't bury the few bundles that need
+          a decision under a wall of identical cards. */}
+      {(() => {
+        const multiBundles = state.bundles.filter((b) => b.members.length > 1)
+        const singletons = state.bundles.filter((b) => b.members.length === 1)
+        const bundleProps = (b: (typeof state.bundles)[number]) => ({
+          key: b.bundle_id,
+          bundle: b,
+          allBundles: state.bundles,
+          onDecision: (bundleId: string, decision: 'accept' | 'split' | 'reject') =>
+            dispatch({ type: 'SET_BUNDLE_DECISION', bundleId, decision }),
+          onRename: (bundleId: string, label: string) =>
+            dispatch({ type: 'RENAME_BUNDLE', bundleId, label: label || null }),
+          onSplit: (bundleId: string, groups: Record<string, 'A' | 'B' | 'Singleton'>) =>
+            dispatch({ type: 'SPLIT_BUNDLE', bundleId, groups, freqMap }),
+          onMerge: (sourceBundleId: string, targetBundleId: string) =>
+            dispatch({ type: 'MERGE_BUNDLE', sourceBundleId, targetBundleId }),
+          onAiReview: () => handleAiReview(b.bundle_id),
+          isReviewing: reviewingBundleId === b.bundle_id,
+        })
+        return (
+          <>
+            {multiBundles.length > 0 && (
+              <div className="space-y-3">
+                {multiBundles.map((b) => (
+                  <BundleCard {...bundleProps(b)} />
+                ))}
+              </div>
+            )}
+            {singletons.length > 0 && (
+              <details className="rounded-card border border-canon-border bg-canon-paper-bright overflow-hidden" open={multiBundles.length === 0}>
+                <summary className="px-4 py-3 cursor-pointer font-mono text-[0.65rem] font-bold tracking-[0.14em] uppercase text-canon-muted select-none hover:bg-canon-sand">
+                  No Duplicates Found ({singletons.length})
+                </summary>
+                <div className="px-4 pb-4 pt-2 space-y-1.5">
+                  {singletons.map((b) => (
+                    <BundleCard {...bundleProps(b)} />
+                  ))}
+                </div>
+              </details>
+            )}
+          </>
+        )
+      })()}
 
       {/* Contribution map (shown after finalize) */}
       {finalized && (
