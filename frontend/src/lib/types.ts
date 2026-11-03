@@ -9,6 +9,8 @@ export interface Bundle {
   semantic: number
   ai_review_json: Record<string, unknown> | null
   weak_pairs: [string, string][]
+  // Set when the bundle came from the AI Suggestions button, so it stays labeled as AI output.
+  ai_suggested?: boolean
 }
 
 export interface EdgeRow {

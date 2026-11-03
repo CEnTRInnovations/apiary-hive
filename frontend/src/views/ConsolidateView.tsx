@@ -2,6 +2,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import type { AppState } from '../lib/types'
 import type { AppAction } from '../lib/state'
 import { computeBundles, reviewBundle } from '../lib/api'
+import { mergeAiSuggestions } from '../lib/state'
 import { BundleCard } from '../components/hive/BundleCard'
 import { BundleContributionMap, type ChordRow } from '../components/hive/BundleContributionMap'
 import { BundlingSensitivityPanel } from '../components/hive/BundlingSensitivityPanel'
@@ -19,9 +20,15 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
   const [computeError, setComputeError] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [finalized, setFinalized] = useState(false)
+  const [aiRunning, setAiRunning] = useState(false)
+  const [aiNote, setAiNote] = useState<string | null>(null)
   const [reviewingBundleId, setReviewingBundleId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const mapRef = useRef<HTMLDivElement>(null)
+  // The AI call can take a while; the note should describe the bundles as they are when it
+  // returns, not as they were when the button was clicked.
+  const bundlesRef = useRef(state.bundles)
+  bundlesRef.current = state.bundles
 
   useEffect(() => {
     if (finalized) mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -49,6 +56,28 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
         dispatch({ type: 'SET_BUNDLES', bundles })
       } catch (err) {
         setComputeError(err instanceof Error ? err.message : 'Compute failed')
+      }
+    })
+  }
+
+  function handleAiSuggestions() {
+    setComputeError(null)
+    setAiNote(null)
+    setAiRunning(true)
+    startTransition(async () => {
+      try {
+        const suggested = await computeBundles(allEdges, allTerms, state.semThresh, state.structThresh, state.modelConfig, true)
+        const { applied, skipped } = mergeAiSuggestions(bundlesRef.current, suggested)
+        dispatch({ type: 'APPLY_AI_SUGGESTIONS', suggested })
+        setAiNote(
+          applied === 0 && skipped === 0
+            ? 'The AI found no terms to bundle at this threshold.'
+            : `Added ${applied} AI suggestion${applied === 1 ? '' : 's'}${skipped ? `; skipped ${skipped} that overlapped bundles you already changed` : ''}.`,
+        )
+      } catch (err) {
+        setComputeError(err instanceof Error ? err.message : 'AI suggestions failed')
+      } finally {
+        setAiRunning(false)
       }
     })
   }
@@ -131,7 +160,10 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
         onSemThreshChange={(v) => dispatch({ type: 'SET_SEM_THRESH', value: v })}
         onStructThreshChange={(v) => dispatch({ type: 'SET_STRUCT_THRESH', value: v })}
         onCompute={handleCompute}
+        onAiSuggestions={handleAiSuggestions}
+        aiPending={aiRunning}
         computeError={computeError}
+        aiNote={aiNote}
       />
 
       {/* Bundle list header */}

@@ -25,21 +25,11 @@ def test_compute_bundles_empty_returns_singletons():
     assert len(result) >= 1
 
 
-def test_compute_bundles_flags_chained_pair_as_weak():
-    # "trust" and "transparency" are never found similar to each other directly — they
-    # only end up in the same bundle because "accountability" is similar to both. That's
-    # single-linkage chaining; weak_pairs should flag the trust/transparency pair as
-    # never pairwise-verified.
-    # accountability shares a structural neighbor with each of trust/transparency (but
-    # trust and transparency share no structural neighbor), and embeddings agree — so
-    # both struct and sem clear threshold for the two "real" pairs (edges now require
-    # both, not either).
-    edges = pd.DataFrame({
-        "from": ["trust", "accountability", "accountability"],
-        "to":   ["foo",   "foo",            "bar"],
-    })
-    edges = pd.concat([edges, pd.DataFrame({"from": ["transparency"], "to": ["bar"]})])
-    edges["weight"] = 1.0
+def test_compute_bundles_does_not_chain_dissimilar_terms():
+    # "trust" and "transparency" are only similar to "accountability", not to each other.
+    # Single-linkage used to pull all three into one bundle; average-linkage stops after
+    # accountability+trust because the cluster's mean similarity to transparency is 0.5.
+    edges = pd.DataFrame({"from": ["trust", "accountability"], "to": ["foo", "bar"], "weight": 1.0})
     terms = pd.DataFrame({
         "term": ["trust", "accountability", "transparency"],
         "frequency": [3, 2, 1],
@@ -52,10 +42,20 @@ def test_compute_bundles_flags_chained_pair_as_weak():
     result = compute_bundles(
         edges, terms, sem_thresh=0.65, struct_thresh=0.48, embedding_sim=embedding_sim,
     )
+    members = sorted(sorted(b.members) for b in result)
+    assert members == [["accountability", "trust"], ["transparency"]]
+    assert all(b.weak_pairs == [] for b in result)
+
+
+def test_compute_bundles_flags_pair_below_threshold_as_weak():
+    # a-b and a-c are strong, b-c is weak (0.4), but {a,b} vs c averages 0.7 >= 0.65, so the
+    # bundle forms; the b/c pair is reported as not directly verified.
+    edges = pd.DataFrame({"from": ["a"], "to": ["z"], "weight": 1.0})
+    terms = pd.DataFrame({"term": ["a", "b", "c"], "frequency": [1, 1, 1]})
+    embedding_sim = {("a", "b"): 0.95, ("a", "c"): 1.0, ("b", "c"): 0.4}
+    result = compute_bundles(edges, terms, sem_thresh=0.65, struct_thresh=0.48, embedding_sim=embedding_sim)
     assert len(result) == 1
-    bundle = result[0]
-    assert set(bundle.members) == {"trust", "accountability", "transparency"}
-    assert bundle.weak_pairs == [("transparency", "trust")]
+    assert result[0].weak_pairs == [("b", "c")]
 
 
 def test_compute_bundles_fully_verified_bundle_has_no_weak_pairs():

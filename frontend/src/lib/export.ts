@@ -26,6 +26,7 @@ export function buildProvenanceJson(state: AppState): string {
       members: b.members,
       decision: b.decision,
       ai_review: b.ai_review_json ?? null,
+      ai_suggested: b.ai_suggested ?? false,
     })),
     canonical_terms: state.canonicalTerms.map((t) => t.term),
     recoded_edges: state.recodedEdges.map((e) => ({

@@ -51,32 +51,44 @@ async def compute_bundles_route(
 
     term_list = terms_df["term"].tolist()
     embedding_sim = None
-    if is_owner:
-        # Decisions API is OpenRouter-specific (alpha endpoint, not a generic OpenAI-compat
-        # route), so this path only applies to the deployment's own default provider, not BYOM.
-        if settings.openrouter_api_key:
-            from hive.nlp import get_decision_sim
+    if body.ai:
+        if is_owner and settings.openrouter_api_key:
+            # Decisions API is OpenRouter-specific (alpha endpoint, not a generic OpenAI-compat
+            # route), so this path only applies to the deployment's own default provider, not BYOM.
+            from hive.nlp import SAME_HEADING_QUESTION, get_decision_sim
             embedding_sim = await get_decision_sim(
                 term_list,
                 model=settings.openrouter_decision_model,
                 api_key=settings.openrouter_api_key,
+                question=SAME_HEADING_QUESTION,
             )
-    elif body.llm_config and body.llm_config.endpoint:
-        from hive.nlp import cosine_sim_matrix, get_embeddings
-        raw = await get_embeddings(
-            term_list,
-            endpoint=body.llm_config.endpoint,
-            model=body.llm_config.model,
-            api_key=body.llm_config.api_key or None,
-        )
-        if raw is not None:
-            matrix = cosine_sim_matrix(raw)
-            keys = list(raw.keys())
-            embedding_sim = {
-                (min(keys[i], keys[j]), max(keys[i], keys[j])): float(matrix[i, j])
-                for i in range(len(keys))
-                for j in range(i + 1, len(keys))
-            }
+        elif body.llm_config and body.llm_config.endpoint:
+            from hive.nlp import cosine_sim_matrix, get_embeddings
+            raw = await get_embeddings(
+                term_list,
+                endpoint=body.llm_config.endpoint,
+                model=body.llm_config.model,
+                api_key=body.llm_config.api_key or None,
+            )
+            if raw is not None:
+                matrix = cosine_sim_matrix(raw)
+                keys = list(raw.keys())
+                embedding_sim = {
+                    (min(keys[i], keys[j]), max(keys[i], keys[j])): float(matrix[i, j])
+                    for i in range(len(keys))
+                    for j in range(i + 1, len(keys))
+                }
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No AI configured. Enter an access code, or an endpoint and model in "
+                    "Settings, to get AI suggestions."
+                ),
+            )
+        # Returning string-similarity bundles under an "AI suggestions" label would mislead.
+        if embedding_sim is None:
+            raise HTTPException(status_code=502, detail="The AI model did not respond. Try again.")
 
     bundles = compute_bundles(
         edges_df, terms_df,
@@ -88,7 +100,7 @@ async def compute_bundles_route(
     # Let the AI pick the clearest label for each bundle instead of defaulting to whichever
     # member was most frequent across uploads — frequency tracks popularity, not clarity.
     # Owner-gated like the decision-sim call above; a human can always rename it afterward.
-    if is_owner and settings.openrouter_api_key:
+    if body.ai and is_owner and settings.openrouter_api_key:
         import asyncio
 
         from hive.nlp import choose_anchor

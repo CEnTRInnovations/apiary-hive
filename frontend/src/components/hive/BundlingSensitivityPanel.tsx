@@ -179,7 +179,11 @@ export interface BundlingSensitivityPanelProps {
   onSemThreshChange: (v: number) => void
   onStructThreshChange: (v: number) => void
   onCompute: () => void
+  onAiSuggestions: () => void
+  /** True while the AI Suggestions call (not Find Bundles) is the one in flight. */
+  aiPending: boolean
   computeError: string | null
+  aiNote: string | null
 }
 
 export function BundlingSensitivityPanel({
@@ -190,7 +194,10 @@ export function BundlingSensitivityPanel({
   onSemThreshChange,
   onStructThreshChange,
   onCompute,
+  onAiSuggestions,
+  aiPending,
   computeError,
+  aiNote,
 }: BundlingSensitivityPanelProps) {
   const [previewCount, setPreviewCount] = useState<number | 'loading'>(
     () => estimateBundleCount(termCount, semThresh, structThresh),
@@ -226,9 +233,9 @@ export function BundlingSensitivityPanel({
           id="sem-thresh"
           label="Meaning Similarity"
           algorithmName="AI judgment"
-          algorithmExplanation="An AI model is asked directly whether two terms mean the same thing and returns a confidence score (0–1). Falls back to character-by-character string similarity (Jaro-Winkler) only when no AI provider is configured for the request."
+          algorithmExplanation="Find Bundles compares spelling (Jaro-Winkler string similarity) and sends nothing to an AI model. AI Suggestions asks an AI model whether a research team would reasonably file two terms under one heading — the same concept, or facets of one idea — and returns a confidence score (0–1). Either way, a bundle forms only when its members are similar on average."
           algorithmAriaLabel="How is meaning similarity determined?"
-          description="Do terms refer to the same concept, even if worded differently? This is the threshold that decides bundling."
+          description="Would these terms sit under one heading, even if worded differently? This is the threshold that decides bundling."
           value={semThresh}
           onChange={onSemThreshChange}
         />
@@ -276,9 +283,9 @@ export function BundlingSensitivityPanel({
           disabled={isPending || noTerms}
           aria-busy={isPending || undefined}
           aria-label={isPending ? 'Finding bundles, please wait' : undefined}
-          title={noTerms ? 'Load a term list first.' : undefined}
+          title={noTerms ? 'Load a term list first.' : 'Groups terms that are spelled alike. Nothing is sent to an AI model.'}
         >
-          {isPending && (
+          {isPending && !aiPending && (
             <svg
               className="w-4 h-4 motion-safe:animate-spin"
               viewBox="0 0 24 24"
@@ -289,7 +296,21 @@ export function BundlingSensitivityPanel({
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
           )}
-          {isPending ? 'Finding bundles…' : 'Find Bundles'}
+          {isPending && !aiPending ? 'Finding bundles…' : 'Find Bundles'}
+        </Button>
+
+        <Button
+          variant="primary"
+          onClick={onAiSuggestions}
+          disabled={isPending || noTerms}
+          aria-busy={aiPending || undefined}
+          title={
+            noTerms
+              ? 'Load a term list first.'
+              : 'Sends your terms to the configured AI model, which proposes bundles. Bundles you have already changed are left alone.'
+          }
+        >
+          {aiPending ? 'Asking AI…' : 'AI Suggestions'}
         </Button>
 
         {noTerms && !isPending && (
@@ -304,6 +325,10 @@ export function BundlingSensitivityPanel({
 
         {computeError && (
           <p className="text-xs text-canon-signal font-sans">{computeError}</p>
+        )}
+
+        {aiNote && !computeError && (
+          <p role="status" className="text-xs text-canon-muted font-sans">{aiNote}</p>
         )}
       </div>
     </div>

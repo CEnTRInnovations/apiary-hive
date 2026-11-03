@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from itertools import combinations
 
-import networkx as nx
 import pandas as pd
 from rapidfuzz import distance as rfd
 
@@ -23,10 +23,9 @@ class Bundle:
     struct: float
     semantic: float
     ai_review: dict | None = field(default=None)
-    # Member pairs that never cleared sem_thresh on their own — present only because some
-    # other member chained them in via connected_components (single-linkage). Non-empty
-    # means this bundle hasn't been fully pairwise-verified; see docs/method notes on
-    # chaining. Does not change which bundles get formed — detection only.
+    # Member pairs that individually fall below sem_thresh — present because the bundle's
+    # members are similar on average (average-linkage), not pairwise. Non-empty means some
+    # members were not directly verified against each other. Detection only.
     weak_pairs: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -43,6 +42,32 @@ def _neighbor_sets(edges: pd.DataFrame) -> dict[str, set[str]]:
         neighbors.setdefault(f, set()).add(t)
         neighbors.setdefault(t, set()).add(f)
     return neighbors
+
+
+def _average_linkage(
+    terms: list[str], pair_scores: dict[tuple[str, str], tuple[float, float]], thresh: float
+) -> list[list[str]]:
+    """Merge the two closest clusters while their mean pairwise semantic score is >= thresh.
+
+    Unlike connected_components (single-linkage), one strong link can't pull in a term that
+    is dissimilar to the rest — a cluster must be similar on average.
+    # ponytail: O(n^3) naive merge loop; fine at dozens of terms, same scale as the O(n^2)
+    # pairwise scoring that feeds it. Use scipy.cluster.hierarchy if term counts grow.
+    """
+    clusters = [[t] for t in terms]
+    while len(clusters) > 1:
+        best, bi, bj = -1.0, 0, 1
+        for i, j in combinations(range(len(clusters)), 2):
+            total = sum(
+                pair_scores[(min(a, b), max(a, b))][1] for a in clusters[i] for b in clusters[j]
+            )
+            avg = total / (len(clusters[i]) * len(clusters[j]))
+            if avg > best:
+                best, bi, bj = avg, i, j
+        if best < thresh:
+            break
+        clusters[bi] += clusters.pop(bj)
+    return clusters
 
 
 def compute_bundles(
@@ -73,39 +98,24 @@ def compute_bundles(
     freq_map: dict[str, int] = dict(zip(terms["term"], terms["frequency"]))
     neighbors = _neighbor_sets(edges)
 
-    g: nx.Graph = nx.Graph()
-    g.add_nodes_from(term_list)
-
     pair_scores: dict[tuple[str, str], tuple[float, float]] = {}
-
-    for i in range(len(term_list)):
-        for j in range(i + 1, len(term_list)):
-            a, b = term_list[i], term_list[j]
-            struct = _jaccard(neighbors.get(a, set()), neighbors.get(b, set()))
-            key = (min(a, b), max(a, b))
-            if embedding_sim is not None and key in embedding_sim:
-                sem = embedding_sim[key]
-            else:
-                sem = rfd.JaroWinkler.normalized_similarity(a, b)
-            # ponytail: semantic-only gate. struct (causal-graph neighbor overlap) never
-            # produced a correct positive in testing — only false positives (airport/pilot,
-            # driver/road) that AND had to suppress. Dropping it was a regression when the
-            # semantic axis was raw Jaro-Winkler (letter overlap ≈ orthographic noise too),
-            # but with a real decision-model probability as sem (see hive/nlp.get_decision_sim)
-            # that pairing is gone — the decision score alone had zero false positives and
-            # sensible recall across 12 test pairs. struct is still computed/returned for
-            # display, just not a gate. Caveat: when no embedding_sim entry exists for a pair
-            # (no decision/embedding call configured or it failed), sem falls back to raw JW
-            # below, which reintroduces the false-positive risk struct used to catch — see
-            # routers/bundles.py for when embedding_sim is populated.
-            if sem >= sem_thresh:
-                g.add_edge(a, b)
-                pair_scores[key] = (struct, sem)
+    for a, b in combinations(term_list, 2):
+        struct = _jaccard(neighbors.get(a, set()), neighbors.get(b, set()))
+        key = (min(a, b), max(a, b))
+        if embedding_sim is not None and key in embedding_sim:
+            sem = embedding_sim[key]
+        else:
+            sem = rfd.JaroWinkler.normalized_similarity(a, b)
+        pair_scores[key] = (struct, sem)
+    # ponytail: semantic-only gate. struct (causal-graph neighbor overlap) never produced a
+    # correct positive in testing — only false positives (airport/pilot, driver/road) — so it
+    # is computed for display but doesn't gate. Caveat: when no embedding_sim entry exists
+    # for a pair (no decision/embedding call configured or it failed), sem falls back to raw
+    # Jaro-Winkler, which reintroduces false-positive risk — see routers/bundles.py.
 
     bundled_terms: set[str] = set()
     bundles: list[Bundle] = []
-    for component in nx.connected_components(g):
-        members = list(component)
+    for members in _average_linkage(term_list, pair_scores, sem_thresh):
         if len(members) < 2:
             continue
 
@@ -120,7 +130,7 @@ def compute_bundles(
                 if m1 >= m2:
                     continue
                 key = (min(m1, m2), max(m1, m2))
-                sc = pair_scores.get(key, (0.0, 0.0))
+                sc = pair_scores[key]
                 max_struct = max(max_struct, sc[0])
                 max_sem = max(max_sem, sc[1])
                 if sc[1] < sem_thresh:

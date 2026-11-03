@@ -86,18 +86,43 @@ async def get_embeddings(
         return None
 
 
+# Looser than SAME_TERM_QUESTION: asks whether a team would file two terms under one heading
+# (same concept OR facets of one idea), which is how the Consolidate vocabulary is built.
+SAME_HEADING_QUESTION = {
+    "same_heading": {
+        "type": "noul",
+        "instructions": (
+            "Two terms were both drawn as nodes in causal concept maps in a community-engaged "
+            "research workshop. When consolidating the vocabulary, would a research team "
+            "reasonably file them under one shared heading — because they name the same "
+            "concept, or play the same role as facets of one idea — rather than being clearly "
+            "different things that should stay separate?"
+        ),
+        "criteria": {
+            "true": "Reasonable to bundle under one heading.",
+            "false": "Clearly different concepts that should stay separate.",
+        },
+    }
+}
+
+
 async def _decision_pair_sim(
-    client: Any, model: str, headers: dict[str, str], a: str, b: str
+    client: Any,
+    model: str,
+    headers: dict[str, str],
+    a: str,
+    b: str,
+    question: dict[str, Any] = SAME_TERM_QUESTION,
 ) -> float | None:
     payload = {
         "model": model,
-        "questions": SAME_TERM_QUESTION,
+        "questions": question,
         "state": {"term_a": a, "term_b": b},
     }
     try:
         resp = await client.post(DECISIONS_URL, json=payload, headers=headers)
         resp.raise_for_status()
-        return float(resp.json()["answers"]["same_term"]["noul"])
+        return float(resp.json()["answers"][next(iter(question))]["noul"])
     except Exception as exc:
         logger.warning("Decisions call failed for (%r, %r): %s", a, b, exc)
         return None
@@ -108,6 +133,7 @@ async def get_decision_sim(
     model: str,
     api_key: str | None,
     max_concurrency: int = 10,
+    question: dict[str, Any] | None = None,
 ) -> dict[tuple[str, str], float] | None:
     """Pairwise synonym-probability via OpenRouter's alpha Decisions API — one 'noul'
     (yes/no) question per unordered term pair, returning a calibrated probability
@@ -131,7 +157,8 @@ async def get_decision_sim(
 
     async def bounded(a: str, b: str, client: Any) -> tuple[tuple[str, str], float | None]:
         async with sem:
-            return (a, b), await _decision_pair_sim(client, model, headers, a, b)
+            extra = {"question": question} if question else {}
+            return (a, b), await _decision_pair_sim(client, model, headers, a, b, **extra)
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         results = await asyncio.gather(*(bounded(a, b, client) for a, b in pairs))

@@ -56,6 +56,7 @@ async def test_review_bundle_owner_token_takes_precedence_over_byom(monkeypatch)
     import routers.bundles as bundles_route
 
     monkeypatch.setattr(settings, "owner_access_token", "secret-token")
+    monkeypatch.setattr(settings, "openrouter_api_key", "")  # keep the Jev pre-filter off
 
     class StubProvider:
         async def complete(self, prompt, **kwargs):
@@ -95,7 +96,7 @@ async def test_compute_bundles_owner_uses_ai_chosen_anchor(monkeypatch):
     monkeypatch.setattr(settings, "owner_access_token", "secret-token")
     monkeypatch.setattr(settings, "openrouter_api_key", "default-key")
 
-    async def fake_get_decision_sim(terms, model, api_key):
+    async def fake_get_decision_sim(terms, model, api_key, question=None):
         return {("community", "trust"): 0.9}
 
     seen_members = []
@@ -111,7 +112,7 @@ async def test_compute_bundles_owner_uses_ai_chosen_anchor(monkeypatch):
         resp = await client.post(
             "/api/bundles/compute",
             headers={"X-Owner-Token": "secret-token"},
-            json={"edges": EDGES, "terms": TERMS, "sem_thresh": 0.65, "struct_thresh": 0.48},
+            json={"edges": EDGES, "terms": TERMS, "sem_thresh": 0.65, "struct_thresh": 0.48, "ai": True},
         )
     assert resp.status_code == 200
     bundles = resp.json()
@@ -131,7 +132,7 @@ async def test_compute_bundles_owner_token_uses_default_decision_model(monkeypat
 
     seen_kwargs = {}
 
-    async def fake_get_decision_sim(terms, model, api_key):
+    async def fake_get_decision_sim(terms, model, api_key, question=None):
         seen_kwargs.update(model=model, api_key=api_key)
         return {}
 
@@ -146,6 +147,7 @@ async def test_compute_bundles_owner_token_uses_default_decision_model(monkeypat
                 "terms": TERMS,
                 "sem_thresh": 0.65,
                 "struct_thresh": 0.48,
+                "ai": True,
                 "llm_config": {
                     "endpoint": "http://should-not-be-used/v1",
                     "model": "wrong-model",
@@ -158,3 +160,61 @@ async def test_compute_bundles_owner_token_uses_default_decision_model(monkeypat
         "model": "default-decision-model",
         "api_key": "default-key",
     }
+
+
+@pytest.mark.asyncio
+async def test_compute_bundles_without_ai_never_calls_ai(monkeypatch):
+    from config import settings
+    import hive.nlp as nlp_module
+
+    monkeypatch.setattr(settings, "owner_access_token", "secret-token")
+    monkeypatch.setattr(settings, "openrouter_api_key", "default-key")
+
+    async def boom(*args, **kwargs):
+        raise AssertionError("AI must not be called unless ai=true")
+
+    monkeypatch.setattr(nlp_module, "get_decision_sim", boom)
+    monkeypatch.setattr(nlp_module, "choose_anchor", boom)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/api/bundles/compute",
+            headers={"X-Owner-Token": "secret-token"},
+            json={"edges": EDGES, "terms": TERMS, "sem_thresh": 0.65, "struct_thresh": 0.48},
+        )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_compute_bundles_ai_without_any_ai_configured_returns_400(monkeypatch):
+    from config import settings
+
+    monkeypatch.setattr(settings, "owner_access_token", "")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/api/bundles/compute",
+            json={"edges": EDGES, "terms": TERMS, "sem_thresh": 0.65, "struct_thresh": 0.48, "ai": True},
+        )
+    assert resp.status_code == 400
+    assert "No AI configured" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_compute_bundles_ai_failure_returns_502(monkeypatch):
+    from config import settings
+    import hive.nlp as nlp_module
+
+    monkeypatch.setattr(settings, "owner_access_token", "secret-token")
+    monkeypatch.setattr(settings, "openrouter_api_key", "default-key")
+
+    async def failed(terms, model, api_key, question=None):
+        return None
+
+    monkeypatch.setattr(nlp_module, "get_decision_sim", failed)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/api/bundles/compute",
+            headers={"X-Owner-Token": "secret-token"},
+            json={"edges": EDGES, "terms": TERMS, "sem_thresh": 0.65, "struct_thresh": 0.48, "ai": True},
+        )
+    assert resp.status_code == 502

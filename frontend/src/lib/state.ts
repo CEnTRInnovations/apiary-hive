@@ -9,6 +9,7 @@ export type AppAction =
   | { type: 'REMOVE_CONTRIBUTOR'; id: string }
   | { type: 'SET_CONTRIBUTOR_DATA'; id: string; data: ParsedUpload }
   | { type: 'SET_BUNDLES'; bundles: Bundle[] }
+  | { type: 'APPLY_AI_SUGGESTIONS'; suggested: Bundle[] }
   | { type: 'SET_BUNDLE_DECISION'; bundleId: string; decision: Bundle['decision'] }
   | { type: 'RENAME_BUNDLE'; bundleId: string; label: string | null }
   | { type: 'SPLIT_BUNDLE'; bundleId: string; groups: Record<string, 'A' | 'B' | 'Singleton'>; freqMap: Record<string, number> }
@@ -36,6 +37,39 @@ const initial: AppState = {
 }
 
 let _nextContribId = 1
+
+/**
+ * Fold AI-suggested bundles into the current list without touching the user's work: a
+ * suggestion is applied only if every member is still an undecided, unbundled term. Anything
+ * overlapping a bundle the user already merged, split or decided is skipped.
+ */
+export function mergeAiSuggestions(current: Bundle[], suggested: Bundle[]) {
+  const multi = suggested.filter((b) => b.members.length > 1).map((b) => ({ ...b, ai_suggested: true }))
+  if (current.length === 0) {
+    return { bundles: [...multi, ...suggested.filter((b) => b.members.length === 1)], applied: multi.length, skipped: 0 }
+  }
+  const open = new Map(current.filter((b) => b.members.length === 1 && !b.decision).map((b) => [b.members[0], b.bundle_id]))
+  const usedIds = new Set(current.map((b) => b.bundle_id))
+  let counter = 1
+  const nextId = () => {
+    while (usedIds.has(`b_${String(counter).padStart(3, '0')}`)) counter++
+    const id = `b_${String(counter++).padStart(3, '0')}`
+    usedIds.add(id)
+    return id
+  }
+  const consumed = new Set<string>()
+  const added: Bundle[] = []
+  let skipped = 0
+  for (const s of multi) {
+    if (s.members.every((m) => open.has(m))) {
+      s.members.forEach((m) => consumed.add(open.get(m)!))
+      added.push({ ...s, bundle_id: nextId() })
+    } else {
+      skipped++
+    }
+  }
+  return { bundles: [...current.filter((b) => !consumed.has(b.bundle_id)), ...added], applied: added.length, skipped }
+}
 
 function nextContribId(): string {
   return `C${String(_nextContribId++).padStart(2, '0')}`
@@ -77,6 +111,9 @@ function reducer(state: AppState, action: AppAction): AppState {
 
     case 'SET_BUNDLES':
       return { ...state, bundles: action.bundles }
+
+    case 'APPLY_AI_SUGGESTIONS':
+      return { ...state, bundles: mergeAiSuggestions(state.bundles, action.suggested).bundles }
 
     case 'SET_BUNDLE_DECISION':
       return {

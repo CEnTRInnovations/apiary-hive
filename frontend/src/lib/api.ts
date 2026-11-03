@@ -58,6 +58,8 @@ export async function computeBundles(
   semThresh: number,
   structThresh: number,
   modelConfig?: ModelConfig | null,
+  // true = ask an AI model; false = string similarity only, nothing sent to a model.
+  ai = false,
 ): Promise<Bundle[]> {
   return post('/bundles/compute', {
     edges: edges.map((e) => ({
@@ -70,6 +72,7 @@ export async function computeBundles(
     terms,
     sem_thresh: semThresh,
     struct_thresh: structThresh,
+    ai,
     // ponytail: llm_config not model_config — backend uses llm_config (Pydantic v2 reserves model_config)
     llm_config: modelConfig
       ? { endpoint: modelConfig.endpoint, model: modelConfig.model, api_key: modelConfig.apiKey }

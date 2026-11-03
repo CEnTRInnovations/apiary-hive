@@ -27,6 +27,9 @@ class ComputeRequest(BaseModel):
     sem_thresh: float = 0.65
     struct_thresh: float = 0.48
     llm_config: LLMConfig | None = None
+    # False = string-similarity only (spelling variants); nothing leaves the server.
+    # True = ask an AI model (owner decision model, or the caller's own embeddings endpoint).
+    ai: bool = False
 
 
 class BundleRead(BaseModel):

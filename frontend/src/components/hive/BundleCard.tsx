@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { cn } from '../../lib/cn'
 import { Icon } from '../ui/Icon'
+import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { AiInsightStrip } from '../ui/AiInsightStrip'
 import type { Bundle } from '../../lib/types'
@@ -443,7 +444,10 @@ export function BundleCard({
               {bundle.label || bundle.anchor}
             </h3>
           )}
-          <p className="text-sm text-canon-muted">{bundle.members.length} terms</p>
+          <p className="text-sm text-canon-muted flex items-center gap-2">
+            {bundle.members.length} terms
+            {bundle.ai_suggested && <Badge accent="plum">AI suggested</Badge>}
+          </p>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button
@@ -467,7 +471,7 @@ export function BundleCard({
             key={m}
             title={
               weakTerms.has(m)
-                ? 'Never directly verified similar to every other member — chained in via another term'
+                ? 'Scored below the threshold against at least one other member — grouped on average similarity'
                 : undefined
             }
             className={cn(
@@ -482,7 +486,7 @@ export function BundleCard({
         ))}
       </div>
 
-      {/* ── Chained-but-unverified pairs (single-linkage) ── */}
+      {/* ── Pairs below threshold that the bundle's average similarity carried in ── */}
       {bundle.weak_pairs.length > 0 && (
         <div
           data-testid="weak-pairs-notice"
@@ -491,7 +495,7 @@ export function BundleCard({
           <Icon name="warning" size={14} className="shrink-0 mt-0.5" />
           <p>
             {bundle.weak_pairs.length === 1 ? 'This pair was' : `These ${bundle.weak_pairs.length} pairs were`} never
-            directly verified similar — grouped only because another member chained them in:{' '}
+            directly scored similar enough — grouped because the bundle is similar on average:{' '}
             {bundle.weak_pairs.map(([a, b]) => `${a} ↔ ${b}`).join(', ')}
           </p>
         </div>
