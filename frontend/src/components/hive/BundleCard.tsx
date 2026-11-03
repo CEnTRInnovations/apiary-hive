@@ -16,6 +16,9 @@ interface BundleCardProps {
   onMerge: (sourceBundleId: string, targetBundleId: string) => void
   onAiReview?: () => void
   isReviewing?: boolean
+  /** Singleton rows only: checkbox state for bundling several terms together. */
+  selected?: boolean
+  onToggleSelect?: () => void
 }
 
 const DECISIONS: {
@@ -220,13 +223,15 @@ export function BundleCard({
   onMerge,
   onAiReview,
   isReviewing,
+  selected = false,
+  onToggleSelect,
 }: BundleCardProps) {
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(bundle.label ?? '')
   const [splitAssignment, setSplitAssignment] = useState<Record<string, 'A' | 'B' | 'Singleton'>>(
     () => Object.fromEntries(bundle.members.map((m) => [m, 'A' as const])),
   )
-  const [mergeMode, setMergeMode] = useState<'add' | 'combine' | null>(null)
+  const [addingToBundle, setAddingToBundle] = useState(false)
   const [mergeTarget, setMergeTarget] = useState('')
   const [splitDismissed, setSplitDismissed] = useState(false)
 
@@ -249,7 +254,6 @@ export function BundleCard({
   const weakTerms = new Set(bundle.weak_pairs.flat())
   const otherBundles = allBundles.filter((b) => b.bundle_id !== bundle.bundle_id)
   const bundlesForAdd = otherBundles.filter((b) => b.members.length > 1)
-  const termsForCombine = otherBundles.filter((b) => b.members.length === 1)
 
   function handleRenameBlur() {
     setRenaming(false)
@@ -273,7 +277,7 @@ export function BundleCard({
   function handleConfirmMerge() {
     if (!mergeTarget) return
     onMerge(bundle.bundle_id, mergeTarget)
-    setMergeMode(null)
+    setAddingToBundle(false)
     setMergeTarget('')
   }
 
@@ -303,9 +307,8 @@ export function BundleCard({
 
   // A singleton "bundle" (no duplicate found for this term) doesn't need the full
   // Accept/Split/AI-Review card — Accept is already the default outcome at Finalize,
-  // and Split has nothing to split. Just the term, an optional rename, Reject (to
-  // drop it from the canonical vocabulary), and a way to manually merge it with
-  // something the algorithm missed.
+  // and Split has nothing to split. Just a checkbox (select several to bundle them
+  // together), the term, an optional rename, Add to Bundle, and Reject.
   if (isSingleton) {
     return (
       <div
@@ -313,6 +316,15 @@ export function BundleCard({
         data-singleton=""
         className="flex flex-wrap items-center gap-2 rounded-control border border-canon-border bg-canon-paper-bright px-3 py-1.5"
       >
+        {onToggleSelect && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            aria-label={`Select ${bundle.label || bundle.anchor}`}
+            className="h-4 w-4 accent-canon-denim"
+          />
+        )}
         {renaming ? (
           <input
             type="text"
@@ -331,7 +343,7 @@ export function BundleCard({
         )}
 
         <div className="ml-auto flex items-center gap-1.5">
-          {mergeMode === null && (
+          {!addingToBundle && (
             <>
               <button
                 type="button"
@@ -345,13 +357,8 @@ export function BundleCard({
                 <Icon name="edit" size={14} />
               </button>
               {bundlesForAdd.length > 0 && (
-                <button type="button" onClick={() => setMergeMode('add')} className={decisionButtonClass}>
+                <button type="button" onClick={() => setAddingToBundle(true)} className={decisionButtonClass}>
                   Add to Bundle
-                </button>
-              )}
-              {termsForCombine.length > 0 && (
-                <button type="button" onClick={() => setMergeMode('combine')} className={decisionButtonClass}>
-                  Combine With…
                 </button>
               )}
               <button
@@ -370,26 +377,20 @@ export function BundleCard({
           )}
         </div>
 
-        {mergeMode !== null && (
+        {addingToBundle && (
           <div className="w-full flex items-center gap-2 pt-1">
             <select
               value={mergeTarget}
               onChange={(e) => setMergeTarget(e.target.value)}
-              aria-label={mergeMode === 'add' ? 'Select target bundle' : 'Select target term'}
+              aria-label="Select target bundle"
               className="text-sm border border-canon-border rounded-control px-2 py-1 bg-canon-paper-bright text-canon-foreground flex-1"
             >
-              <option value="">{mergeMode === 'add' ? 'Select bundle…' : 'Select term…'}</option>
-              {mergeMode === 'add'
-                ? bundlesForAdd.map((b) => (
-                    <option key={b.bundle_id} value={b.bundle_id}>
-                      {b.label || b.anchor} ({b.members.length} terms)
-                    </option>
-                  ))
-                : termsForCombine.map((b) => (
-                    <option key={b.bundle_id} value={b.bundle_id}>
-                      {b.members[0]}
-                    </option>
-                  ))}
+              <option value="">Select bundle…</option>
+              {bundlesForAdd.map((b) => (
+                <option key={b.bundle_id} value={b.bundle_id}>
+                  {b.label || b.anchor} ({b.members.length} terms)
+                </option>
+              ))}
             </select>
             <button
               type="button"
@@ -407,7 +408,7 @@ export function BundleCard({
             <button
               type="button"
               onClick={() => {
-                setMergeMode(null)
+                setAddingToBundle(false)
                 setMergeTarget('')
               }}
               className="px-3 py-1 text-xs rounded border border-canon-border text-canon-foreground hover:bg-canon-sand"

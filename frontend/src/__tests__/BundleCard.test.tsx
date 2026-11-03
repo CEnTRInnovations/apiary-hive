@@ -88,11 +88,10 @@ describe('BundleCard', () => {
     expect(screen.queryByText('AI Review')).not.toBeInTheDocument()
   })
 
-  it('offers Combine With… for a singleton when other singletons exist, not otherwise', () => {
-    const singleton: Bundle = { ...baseBundle, bundle_id: 'b_001', members: ['ticket'], anchor: 'ticket' }
-    const otherSingleton: Bundle = { ...baseBundle, bundle_id: 'b_002', members: ['tickets'], anchor: 'tickets' }
-
-    const { rerender } = render(
+  it('shows a select checkbox on a singleton row that reports toggles', () => {
+    const singleton: Bundle = { ...baseBundle, members: ['ticket'], anchor: 'ticket' }
+    const onToggleSelect = vi.fn()
+    render(
       <BundleCard
         bundle={singleton}
         allBundles={[singleton]}
@@ -100,21 +99,13 @@ describe('BundleCard', () => {
         onRename={noop}
         onSplit={noop}
         onMerge={noop}
+        selected={false}
+        onToggleSelect={onToggleSelect}
       />,
     )
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select ticket' }))
+    expect(onToggleSelect).toHaveBeenCalledTimes(1)
     expect(screen.queryByText('Combine With…')).not.toBeInTheDocument()
-
-    rerender(
-      <BundleCard
-        bundle={singleton}
-        allBundles={[singleton, otherSingleton]}
-        onDecision={noop}
-        onRename={noop}
-        onSplit={noop}
-        onMerge={noop}
-      />,
-    )
-    expect(screen.getByText('Combine With…')).toBeInTheDocument()
   })
 
   it('reports reject for a singleton via onDecision', () => {

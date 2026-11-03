@@ -8,7 +8,6 @@ import { BundlingSensitivityPanel } from '../components/hive/BundlingSensitivity
 import { PhaseHeader } from '../components/hive/PhaseHeader'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
-import { Chip } from '../components/ui/Chip'
 
 interface ConsolidateViewProps {
   state: AppState
@@ -21,6 +20,7 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [finalized, setFinalized] = useState(false)
   const [reviewingBundleId, setReviewingBundleId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const mapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -51,6 +51,14 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
         setComputeError(err instanceof Error ? err.message : 'Compute failed')
       }
     })
+  }
+
+  // Bundle the checked unbundled terms: merge them into the most frequent one so it
+  // becomes the anchor (same rule SPLIT_BUNDLE uses).
+  function handleBundleSelected(ids: string[]) {
+    const [target, ...rest] = ids
+    for (const sourceBundleId of rest) dispatch({ type: 'MERGE_BUNDLE', sourceBundleId, targetBundleId: target })
+    setSelectedIds(new Set())
   }
 
   function handleMarkAllAccept() {
@@ -115,31 +123,6 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
         ← Back to Gather
       </Button>
 
-      {/* All-terms summary */}
-      {allTerms.length > 0 && (
-        <details className="rounded-card border border-canon-border bg-canon-paper-bright overflow-hidden">
-          <summary className="px-4 py-3 cursor-pointer font-mono text-[0.65rem] font-bold tracking-[0.14em] uppercase text-canon-muted select-none hover:bg-canon-sand">
-            All Terms ({allTerms.length})
-          </summary>
-          <div className="px-4 pb-4 pt-2 flex flex-wrap gap-1.5">
-            {allTerms.map((t) => {
-              const inBundle = state.bundles.find((b) => b.members.includes(t.term))
-              return (
-                <Chip
-                  key={t.term}
-                  accent={inBundle ? undefined : 'signal'}
-                  className={inBundle ? 'bg-canon-sand' : undefined}
-                  title={inBundle ? `In bundle: ${inBundle.label ?? inBundle.anchor}` : 'Not bundled'}
-                >
-                  {t.term}
-                  {t.frequency > 1 && <span className="ml-1 opacity-60">×{t.frequency}</span>}
-                </Chip>
-              )
-            })}
-          </div>
-        </details>
-      )}
-
       <BundlingSensitivityPanel
         semThresh={state.semThresh}
         structThresh={state.structThresh}
@@ -181,13 +164,16 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
 
       {reviewError && <p className="text-canon-signal text-sm mt-2">{reviewError}</p>}
 
-      {/* Bundle cards — real bundles (2+ terms) get full review cards; terms with no
-          duplicate found collapse into a compact list below, so a mostly-singleton
-          result (the common, correct case) doesn't bury the few bundles that need
-          a decision under a wall of identical cards. */}
+      {/* Suggested duplicates (2+ terms) get full review cards in an accordion. Unbundled
+          terms are the common case, so they stay out in the open with checkboxes: tick
+          the ones that mean the same thing and bundle them together. */}
       {(() => {
         const multiBundles = state.bundles.filter((b) => b.members.length > 1)
         const singletons = state.bundles.filter((b) => b.members.length === 1)
+        const selected = singletons
+          .filter((b) => selectedIds.has(b.bundle_id))
+          .sort((a, b) => (freqMap[b.anchor] ?? 0) - (freqMap[a.anchor] ?? 0))
+          .map((b) => b.bundle_id)
         const bundleProps = (b: (typeof state.bundles)[number]) => ({
           key: b.bundle_id,
           bundle: b,
@@ -203,26 +189,66 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
           onAiReview: () => handleAiReview(b.bundle_id),
           isReviewing: reviewingBundleId === b.bundle_id,
         })
+        const sectionLabel = 'font-mono text-[0.65rem] font-bold tracking-[0.14em] uppercase text-canon-muted'
         return (
           <>
             {multiBundles.length > 0 && (
-              <div className="space-y-3">
-                {multiBundles.map((b) => (
-                  <BundleCard {...bundleProps(b)} />
-                ))}
-              </div>
-            )}
-            {singletons.length > 0 && (
-              <details className="rounded-card border border-canon-border bg-canon-paper-bright overflow-hidden" open={multiBundles.length === 0}>
-                <summary className="px-4 py-3 cursor-pointer font-mono text-[0.65rem] font-bold tracking-[0.14em] uppercase text-canon-muted select-none hover:bg-canon-sand">
-                  No Duplicates Found ({singletons.length})
+              <details className="rounded-card border border-canon-border bg-canon-paper-bright overflow-hidden" open>
+                <summary className={`px-4 py-3 cursor-pointer select-none hover:bg-canon-sand ${sectionLabel}`}>
+                  Suggested Duplicates ({multiBundles.length})
                 </summary>
-                <div className="px-4 pb-4 pt-2 space-y-1.5">
-                  {singletons.map((b) => (
+                <div className="px-4 pb-4 pt-2 space-y-3">
+                  {multiBundles.map((b) => (
                     <BundleCard {...bundleProps(b)} />
                   ))}
                 </div>
               </details>
+            )}
+            {singletons.length > 0 && (
+              <section className="space-y-2">
+                <div>
+                  <p className={sectionLabel}>Unbundled Terms ({singletons.length})</p>
+                  <p className="text-sm text-canon-muted mt-1">
+                    Tick terms that mean the same thing, then bundle them together.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  {singletons.map((b) => (
+                    <BundleCard
+                      {...bundleProps(b)}
+                      selected={selectedIds.has(b.bundle_id)}
+                      onToggleSelect={() =>
+                        setSelectedIds((prev) => {
+                          const next = new Set(prev)
+                          if (!next.delete(b.bundle_id)) next.add(b.bundle_id)
+                          return next
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+                {selected.length > 0 && (
+                  <div className="sticky bottom-4 flex items-center justify-between gap-2 rounded-card border border-canon-denim bg-canon-paper-bright px-4 py-2 shadow-lg">
+                    <span className="text-sm text-canon-foreground">
+                      {selected.length} selected
+                      {selected.length < 2 && <span className="text-canon-muted"> — pick at least 2 to bundle</span>}
+                    </span>
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+                        Clear
+                      </Button>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        disabled={selected.length < 2}
+                        onClick={() => handleBundleSelected(selected)}
+                      >
+                        Bundle together
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </section>
             )}
           </>
         )
