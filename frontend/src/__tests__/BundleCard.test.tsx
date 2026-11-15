@@ -83,7 +83,7 @@ describe('BundleCard', () => {
 
     expect(screen.getByText('ticket')).toBeInTheDocument()
     expect(screen.getByText('Reject')).toBeInTheDocument()
-    expect(screen.queryByText('Accept')).not.toBeInTheDocument()
+    expect(screen.getByText('Accept')).toBeInTheDocument()
     expect(screen.queryByText('Split')).not.toBeInTheDocument()
     expect(screen.queryByText('AI Review')).not.toBeInTheDocument()
   })

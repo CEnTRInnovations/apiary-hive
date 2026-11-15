@@ -144,4 +144,13 @@ describe('useAppState', () => {
     expect(result.current[0].bundles[0].anchor).toBe('belonging')
     expect(result.current[0].canonicalTerms.map((t) => t.term)).toEqual(['belonging'])
   })
+
+  it('MERGE_BUNDLE clears an earlier decision, so a bundle of accepted terms is not pre-accepted', () => {
+    const { result } = renderHook(() => useAppState())
+    const d = result.current[1]
+    act(() => d({ type: 'SET_BUNDLES', bundles: [mkBundle('b_001', ['pilot'], { decision: 'accept' }), mkBundle('b_002', ['captain'], { decision: 'accept' })] }))
+    act(() => d({ type: 'MERGE_BUNDLE', sourceBundleId: 'b_002', targetBundleId: 'b_001' }))
+    expect(result.current[0].bundles).toHaveLength(1)
+    expect(result.current[0].bundles[0].decision).toBeNull()
+  })
 })

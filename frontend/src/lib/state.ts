@@ -213,7 +213,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       if (!source || !target) return state
       const ws = workshopTerms(state.contributors)
       const anchor = ws.has(source.anchor) && !ws.has(target.anchor) ? source.anchor : target.anchor
-      const merged = { ...target, anchor, members: Array.from(new Set([...target.members, ...source.members])) }
+      // Merging changes what's being decided, so an earlier Accept/Reject on either side doesn't carry over.
+      const merged = { ...target, anchor, decision: null, members: Array.from(new Set([...target.members, ...source.members])) }
       return {
         ...state,
         bundles: state.bundles

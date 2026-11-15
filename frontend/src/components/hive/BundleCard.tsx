@@ -306,10 +306,9 @@ export function BundleCard({
     'border-canon-border text-canon-foreground hover:border-canon-denim hover:bg-canon-sand',
   )
 
-  // A singleton "bundle" (no duplicate found for this term) doesn't need the full
-  // Accept/Split/AI-Review card — Accept is already the default outcome at Finalize,
-  // and Split has nothing to split. Just a checkbox (select several to bundle them
-  // together), the term, an optional rename, Add to Bundle, and Reject.
+  // A singleton "bundle" (no duplicate found for this term) is decided just like a bundle,
+  // but doesn't need Split (nothing to split) or AI Review. Just a checkbox (select several
+  // to bundle them together), the term, an optional rename, Add to Bundle, Accept and Reject.
   if (isSingleton) {
     return (
       <div
@@ -362,18 +361,21 @@ export function BundleCard({
                   Add to Bundle
                 </button>
               )}
-              <button
-                type="button"
-                aria-pressed={bundle.decision === 'reject'}
-                onClick={() => onDecision(bundle.bundle_id, 'reject')}
-                className={cn(
-                  decisionButtonClass,
-                  bundle.decision === 'reject' && 'bg-canon-signal text-white border-canon-signal',
-                )}
-              >
-                <Icon name="cancel" size={14} />
-                Reject
-              </button>
+              {(['accept', 'reject'] as const).map((value) => {
+                const { label, icon, activeClass } = DECISIONS.find((d) => d.value === value)!
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    aria-pressed={bundle.decision === value}
+                    onClick={() => onDecision(bundle.bundle_id, value)}
+                    className={cn(decisionButtonClass, bundle.decision === value && activeClass)}
+                  >
+                    <Icon name={icon} size={14} />
+                    {label}
+                  </button>
+                )
+              })}
             </>
           )}
         </div>

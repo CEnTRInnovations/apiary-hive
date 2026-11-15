@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { useEffect } from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { ConsolidateView } from '../views/ConsolidateView'
 import { useAppState } from '../lib/state'
 import type { Bundle } from '../lib/types'
@@ -72,5 +72,17 @@ describe('ConsolidateView', () => {
     fireEvent.change(input, { target: { value: 'Belonging' } })
     expect(screen.getByRole('button', { name: 'Add term' })).toBeDisabled()
     expect(screen.getByText(/already in the list/)).toBeInTheDocument()
+  })
+
+  it('lets unbundled terms be accepted, and keeps both sections open once a bundle exists', () => {
+    render(<Harness />)
+    expect(screen.getByText('Suggested Duplicates (1)').closest('details')).toBeNull()
+    expect(screen.getByText('0 of 4 decided')).toBeInTheDocument()
+
+    const gate = screen.getByText('gate').closest('[data-singleton]') as HTMLElement
+    fireEvent.click(within(gate).getByRole('button', { name: 'Accept' }))
+
+    expect(within(gate).getByRole('button', { name: 'Accept' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText('1 of 4 decided')).toBeInTheDocument()
   })
 })

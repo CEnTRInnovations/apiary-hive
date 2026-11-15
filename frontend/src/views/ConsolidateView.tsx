@@ -230,9 +230,9 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
         </div>
       )}
 
-      {/* Suggested duplicates (2+ terms) get full review cards in an accordion. Unbundled
-          terms are the common case, so they stay out in the open with checkboxes: tick
-          the ones that mean the same thing and bundle them together. */}
+      {/* Suggested duplicates (2+ terms) get full review cards. Unbundled terms get compact
+          rows with checkboxes: tick the ones that mean the same thing and bundle them
+          together. Both are decided the same way, and neither is hidden behind an accordion. */}
       {(() => {
         const multiBundles = state.bundles.filter((b) => b.members.length > 1)
         const singletons = state.bundles.filter((b) => b.members.length === 1)
@@ -259,16 +259,14 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
         return (
           <>
             {multiBundles.length > 0 && (
-              <details className="rounded-card border border-canon-border bg-canon-paper-bright overflow-hidden" open>
-                <summary className={`px-4 py-3 cursor-pointer select-none hover:bg-canon-sand ${sectionLabel}`}>
-                  Suggested Duplicates ({multiBundles.length})
-                </summary>
-                <div className="px-4 pb-4 pt-2 space-y-3">
+              <section className="space-y-2">
+                <p className={sectionLabel}>Suggested Duplicates ({multiBundles.length})</p>
+                <div className="space-y-3">
                   {multiBundles.map((b) => (
                     <BundleCard {...bundleProps(b)} />
                   ))}
                 </div>
-              </details>
+              </section>
             )}
             {singletons.length > 0 && (
               <section className="space-y-2">
