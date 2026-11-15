@@ -11,6 +11,8 @@ export interface Bundle {
   weak_pairs: [string, string][]
   // Set when the bundle came from the AI Suggestions button, so it stays labeled as AI output.
   ai_suggested?: boolean
+  // Set once the user merges, splits or renames the bundle, so AI Suggestions won't replace it.
+  user_edited?: boolean
   // Model, question and threshold the AI scored this bundle with; exported in the provenance file.
   ai_run?: Record<string, unknown> | null
 }

@@ -40,16 +40,19 @@ const initial: AppState = {
 let _nextContribId = 1
 
 /**
- * Fold AI-suggested bundles into the current list without touching the user's work: a
- * suggestion is applied only if every member is still an undecided, unbundled term. Anything
- * overlapping a bundle the user already merged, split or decided is skipped.
+ * Fold AI-suggested bundles into the current list without touching the user's work. Bundles
+ * the user has not touched (undecided singletons, and multi-term bundles straight from Find
+ * Bundles) are replaceable: the AI's grouping supersedes the string-similarity one, and terms
+ * it leaves out fall back to singletons. Anything the user decided, merged, split or renamed,
+ * or that an earlier AI run produced, is kept, and suggestions overlapping it are skipped.
  */
 export function mergeAiSuggestions(current: Bundle[], suggested: Bundle[]) {
   const multi = suggested.filter((b) => b.members.length > 1).map((b) => ({ ...b, ai_suggested: true }))
   if (current.length === 0) {
     return { bundles: [...multi, ...suggested.filter((b) => b.members.length === 1)], applied: multi.length, skipped: 0 }
   }
-  const open = new Map(current.filter((b) => b.members.length === 1 && !b.decision).map((b) => [b.members[0], b.bundle_id]))
+  const replaceable = (b: Bundle) => !b.decision && (b.members.length === 1 || (!b.user_edited && !b.ai_suggested))
+  const free = new Set(current.filter(replaceable).flatMap((b) => b.members))
   const usedIds = new Set(current.map((b) => b.bundle_id))
   let counter = 1
   const nextId = () => {
@@ -58,18 +61,31 @@ export function mergeAiSuggestions(current: Bundle[], suggested: Bundle[]) {
     usedIds.add(id)
     return id
   }
-  const consumed = new Set<string>()
+  const taken = new Set<string>()
   const added: Bundle[] = []
   let skipped = 0
   for (const s of multi) {
-    if (s.members.every((m) => open.has(m))) {
-      s.members.forEach((m) => consumed.add(open.get(m)!))
+    if (s.members.every((m) => free.has(m))) {
+      s.members.forEach((m) => taken.add(m))
       added.push({ ...s, bundle_id: nextId() })
     } else {
       skipped++
     }
   }
-  return { bundles: [...current.filter((b) => !consumed.has(b.bundle_id)), ...added], applied: added.length, skipped }
+  const kept: Bundle[] = []
+  const loose: Bundle[] = []
+  for (const b of current) {
+    if (!replaceable(b)) kept.push(b)
+    else if (b.members.length === 1) {
+      if (!taken.has(b.members[0])) kept.push(b)
+    } else {
+      // A dissolved string-based bundle: terms the AI didn't group come back as singletons.
+      for (const t of b.members) {
+        if (!taken.has(t)) loose.push({ bundle_id: nextId(), anchor: t, label: null, members: [t], decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [] })
+      }
+    }
+  }
+  return { bundles: [...kept, ...added, ...loose], applied: added.length, skipped }
 }
 
 function workshopTerms(contributors: Contributor[]): Set<string> {
@@ -171,7 +187,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         bundles: state.bundles.map((b) =>
-          b.bundle_id === action.bundleId ? { ...b, label: action.label } : b,
+          b.bundle_id === action.bundleId ? { ...b, label: action.label, user_edited: true } : b,
         ),
       }
 
@@ -198,7 +214,7 @@ function reducer(state: AppState, action: AppAction): AppState {
         const anchor = members.reduce((best, t) =>
           (action.freqMap[t] ?? 0) > (action.freqMap[best] ?? 0) ? t : best,
         )
-        newBundles.push({ bundle_id: nextId(), anchor, label: null, members, decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [] })
+        newBundles.push({ bundle_id: nextId(), anchor, label: null, members, decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [], user_edited: true })
       }
       for (const term of groups['Singleton'] || []) {
         newBundles.push({ bundle_id: nextId(), anchor: term, label: null, members: [term], decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [] })
@@ -214,7 +230,7 @@ function reducer(state: AppState, action: AppAction): AppState {
       const ws = workshopTerms(state.contributors)
       const anchor = ws.has(source.anchor) && !ws.has(target.anchor) ? source.anchor : target.anchor
       // Merging changes what's being decided, so an earlier Accept/Reject on either side doesn't carry over.
-      const merged = { ...target, anchor, decision: null, members: Array.from(new Set([...target.members, ...source.members])) }
+      const merged = { ...target, anchor, decision: null, user_edited: true, members: Array.from(new Set([...target.members, ...source.members])) }
       return {
         ...state,
         bundles: state.bundles

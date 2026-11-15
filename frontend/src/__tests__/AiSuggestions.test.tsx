@@ -63,7 +63,7 @@ describe('AI Suggestions', () => {
 describe('mergeAiSuggestions', () => {
   it('skips suggestions that touch a bundle the user already changed', () => {
     const current = [
-      bundle('b_001', ['pilot', 'captain']), // user already bundled these
+      { ...bundle('b_001', ['pilot', 'captain']), user_edited: true }, // user already bundled these
       bundle('b_002', ['gate']),
       bundle('b_003', ['crew'], 'reject'), // user decided on this one
       bundle('b_004', ['bag']),
@@ -76,6 +76,22 @@ describe('mergeAiSuggestions', () => {
     expect(skipped).toBe(2)
     expect(bundles.map((b) => b.members)).toEqual([['pilot', 'captain'], ['crew'], ['gate', 'bag']])
     expect(bundles.at(-1)).toMatchObject({ ai_suggested: true })
+    expect(new Set(bundles.map((b) => b.bundle_id)).size).toBe(bundles.length)
+  })
+
+  it('replaces untouched Find Bundles groups; terms the AI leaves out become singletons', () => {
+    const current = [
+      bundle('b_001', ['advisory', 'wards']), // string-similarity noise, user never touched it
+      bundle('b_002', ['funds', 'funding', 'grants']), // AI only keeps two of these together
+      bundle('b_003', ['gate']),
+    ]
+    const suggested = [bundle('b_001', ['funds', 'funding']), bundle('b_002', ['advisory']), bundle('b_003', ['wards'])]
+
+    const { bundles, applied } = mergeAiSuggestions(current, suggested)
+
+    expect(applied).toBe(1)
+    expect(bundles.filter((b) => b.members.length > 1).map((b) => b.members)).toEqual([['funds', 'funding']])
+    expect(bundles.filter((b) => b.members.length === 1).map((b) => b.members[0]).sort()).toEqual(['advisory', 'gate', 'grants', 'wards'])
     expect(new Set(bundles.map((b) => b.bundle_id)).size).toBe(bundles.length)
   })
 })
