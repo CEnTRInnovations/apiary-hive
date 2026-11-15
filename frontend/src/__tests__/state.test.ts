@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useAppState } from '../lib/state'
+import type { Bundle } from '../lib/types'
 
 describe('useAppState', () => {
   it('initializes ownerToken as null', () => {
@@ -96,5 +97,51 @@ describe('useAppState', () => {
     const { canonicalTerms, recodedEdges } = result.current[0]
     expect(canonicalTerms.map((t) => t.term).sort()).toEqual(['theater', 'ticket'])
     expect(recodedEdges).toEqual([])
+  })
+
+  const mkBundle = (id: string, members: string[], over: Partial<Bundle> = {}): Bundle => ({
+    bundle_id: id, anchor: members[0], label: null, members, decision: null,
+    sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [], ...over,
+  })
+  const upload = (terms: [string, number][], edges: [string, string][] = []) => ({
+    terms: terms.map(([term, frequency]) => ({ term, frequency })),
+    edges: edges.map(([from_term, to_term]) => ({ from_term, to_term, weight: 1, effect: 1 as const, composite_id: '' })),
+    n_terms: terms.length, n_edges: edges.length, n_positive: edges.length, n_negative: 0,
+  })
+
+  it('FINALIZE exports a renamed bundle under its new name, in terms and edges', () => {
+    const { result } = renderHook(() => useAppState())
+    const d = result.current[1]
+    act(() => d({ type: 'ADD_CONTRIBUTORS_BULK', entries: [{ label: 'G1', data: upload([['housing', 3], ['shelter', 1], ['trust', 1]], [['housing', 'trust']]) }] }))
+    act(() => d({ type: 'SET_BUNDLES', bundles: [mkBundle('b_001', ['housing', 'shelter'], { label: 'belonging' }), mkBundle('b_002', ['trust'])] }))
+    act(() => d({ type: 'FINALIZE' }))
+    const { canonicalTerms, recodedEdges } = result.current[0]
+    expect(canonicalTerms).toEqual(expect.arrayContaining([{ term: 'belonging', frequency: 3 }, { term: 'trust', frequency: 1 }]))
+    expect(canonicalTerms.map((t) => t.term)).not.toContain('housing')
+    expect(recodedEdges.map((e) => [e.from_term, e.to_term])).toEqual([['belonging', 'trust']])
+  })
+
+  it('ADD_WORKSHOP_TERM records the term under Workshop, adds an unbundled row, and ignores duplicates', () => {
+    const { result } = renderHook(() => useAppState())
+    const d = result.current[1]
+    act(() => d({ type: 'ADD_CONTRIBUTORS_BULK', entries: [{ label: 'G1', data: upload([['housing', 3]]) }] }))
+    act(() => d({ type: 'SET_BUNDLES', bundles: [mkBundle('b_001', ['housing'])] }))
+    act(() => d({ type: 'ADD_WORKSHOP_TERM', term: '  belonging ' }))
+    act(() => d({ type: 'ADD_WORKSHOP_TERM', term: 'Housing' })) // already in G1, case-insensitive
+    const s = result.current[0]
+    expect(s.contributors.find((c) => c.id === 'workshop')?.data?.terms).toEqual([{ term: 'belonging', frequency: 1 }])
+    expect(s.bundles.map((b) => b.members)).toEqual([['housing'], ['belonging']])
+  })
+
+  it('a workshop term becomes the anchor when merged in, even against a more frequent term', () => {
+    const { result } = renderHook(() => useAppState())
+    const d = result.current[1]
+    act(() => d({ type: 'ADD_CONTRIBUTORS_BULK', entries: [{ label: 'G1', data: upload([['housing', 5], ['shelter', 2]]) }] }))
+    act(() => d({ type: 'SET_BUNDLES', bundles: [mkBundle('b_001', ['housing', 'shelter']) ] }))
+    act(() => d({ type: 'ADD_WORKSHOP_TERM', term: 'belonging' }))
+    act(() => d({ type: 'MERGE_BUNDLE', sourceBundleId: 'b_002', targetBundleId: 'b_001' }))
+    act(() => d({ type: 'FINALIZE' }))
+    expect(result.current[0].bundles[0].anchor).toBe('belonging')
+    expect(result.current[0].canonicalTerms.map((t) => t.term)).toEqual(['belonging'])
   })
 })

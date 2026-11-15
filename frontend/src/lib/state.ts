@@ -1,6 +1,6 @@
 import { useReducer } from 'react'
 import type { AppState, Bundle, Contributor, ModelConfig, ParsedUpload, TermRow, EdgeRow } from './types'
-import { SEM_THRESH_DEFAULT, STRUCT_THRESH_DEFAULT } from './constants'
+import { SEM_THRESH_DEFAULT, STRUCT_THRESH_DEFAULT, WORKSHOP_ID, WORKSHOP_LABEL } from './constants'
 
 export type AppAction =
   | { type: 'SET_PROJECT'; name: string; defining_term: string }
@@ -8,6 +8,7 @@ export type AppAction =
   | { type: 'ADD_CONTRIBUTORS_BULK'; entries: { id?: string; label: string; data: ParsedUpload }[] }
   | { type: 'REMOVE_CONTRIBUTOR'; id: string }
   | { type: 'SET_CONTRIBUTOR_DATA'; id: string; data: ParsedUpload }
+  | { type: 'ADD_WORKSHOP_TERM'; term: string }
   | { type: 'SET_BUNDLES'; bundles: Bundle[] }
   | { type: 'APPLY_AI_SUGGESTIONS'; suggested: Bundle[] }
   | { type: 'SET_BUNDLE_DECISION'; bundleId: string; decision: Bundle['decision'] }
@@ -71,6 +72,22 @@ export function mergeAiSuggestions(current: Bundle[], suggested: Bundle[]) {
   return { bundles: [...current.filter((b) => !consumed.has(b.bundle_id)), ...added], applied: added.length, skipped }
 }
 
+function workshopTerms(contributors: Contributor[]): Set<string> {
+  const w = contributors.find((c) => c.id === WORKSHOP_ID)
+  return new Set((w?.data?.terms ?? []).map((t) => t.term))
+}
+
+// A term the room added is usually the name the group settled on, so it wins the anchor
+// over a more frequent term from someone's map. (Backend picks anchors by frequency only.)
+function preferWorkshopAnchor(bundles: Bundle[], ws: Set<string>): Bundle[] {
+  if (ws.size === 0) return bundles
+  return bundles.map((b) => {
+    if (ws.has(b.anchor)) return b
+    const w = b.members.find((m) => ws.has(m))
+    return w ? { ...b, anchor: w } : b
+  })
+}
+
 function nextContribId(): string {
   return `C${String(_nextContribId++).padStart(2, '0')}`
 }
@@ -109,11 +126,38 @@ function reducer(state: AppState, action: AppAction): AppState {
         ),
       }
 
+    case 'ADD_WORKSHOP_TERM': {
+      const term = action.term.trim()
+      const known = new Set(
+        state.contributors.flatMap((c) => (c.data?.terms ?? []).map((t) => t.term.toLowerCase())),
+      )
+      if (!term || known.has(term.toLowerCase())) return state
+      const existing = state.contributors.find((c) => c.id === WORKSHOP_ID)
+      const terms = [...(existing?.data?.terms ?? []), { term, frequency: 1 }]
+      const data: ParsedUpload = { terms, edges: [], n_terms: terms.length, n_edges: 0, n_positive: 0, n_negative: 0 }
+      const contributors = existing
+        ? state.contributors.map((c) => (c.id === WORKSHOP_ID ? { ...c, data } : c))
+        : [...state.contributors, { id: WORKSHOP_ID, label: WORKSHOP_LABEL, data }]
+      // Before the first Compute there are no bundles to add a row to; Compute will pick the term up.
+      if (state.bundles.length === 0) return { ...state, contributors }
+      const used = new Set(state.bundles.map((b) => b.bundle_id))
+      let n = state.bundles.length + 1
+      while (used.has(`b_${String(n).padStart(3, '0')}`)) n++
+      const added: Bundle = { bundle_id: `b_${String(n).padStart(3, '0')}`, anchor: term, label: null, members: [term], decision: null, sim_score: 0, struct: 0, semantic: 0, ai_review_json: null, weak_pairs: [] }
+      return { ...state, contributors, bundles: [...state.bundles, added] }
+    }
+
     case 'SET_BUNDLES':
-      return { ...state, bundles: action.bundles }
+      return { ...state, bundles: preferWorkshopAnchor(action.bundles, workshopTerms(state.contributors)) }
 
     case 'APPLY_AI_SUGGESTIONS':
-      return { ...state, bundles: mergeAiSuggestions(state.bundles, action.suggested).bundles }
+      return {
+        ...state,
+        bundles: preferWorkshopAnchor(
+          mergeAiSuggestions(state.bundles, action.suggested).bundles,
+          workshopTerms(state.contributors),
+        ),
+      }
 
     case 'SET_BUNDLE_DECISION':
       return {
@@ -167,7 +211,9 @@ function reducer(state: AppState, action: AppAction): AppState {
       const source = state.bundles.find((b) => b.bundle_id === action.sourceBundleId)
       const target = state.bundles.find((b) => b.bundle_id === action.targetBundleId)
       if (!source || !target) return state
-      const merged = { ...target, members: Array.from(new Set([...target.members, ...source.members])) }
+      const ws = workshopTerms(state.contributors)
+      const anchor = ws.has(source.anchor) && !ws.has(target.anchor) ? source.anchor : target.anchor
+      const merged = { ...target, anchor, members: Array.from(new Set([...target.members, ...source.members])) }
       return {
         ...state,
         bundles: state.bundles
@@ -200,11 +246,14 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, stage: action.stage }
 
     case 'FINALIZE': {
-      // Build remap: accepted + null bundles remap members → anchor
+      // Build remap: accepted + null bundles remap members → the bundle's name. A rename
+      // (label) is the name the group chose, so it wins over the anchor.
+      const isRemapped = (b: Bundle) => !b.decision || b.decision === 'accept'
+      const nameOf = (b: Bundle) => (isRemapped(b) ? b.label?.trim() || b.anchor : b.anchor)
       const remap: Record<string, string> = {}
       for (const b of state.bundles) {
-        if (!b.decision || b.decision === 'accept') {
-          for (const m of b.members) remap[m] = b.anchor
+        if (isRemapped(b)) {
+          for (const m of b.members) remap[m] = nameOf(b)
         }
       }
       // Gather all raw edges across contributors
@@ -223,15 +272,20 @@ function reducer(state: AppState, action: AppAction): AppState {
         state.bundles.filter((b) => b.decision === 'reject').flatMap((b) => b.members),
       )
       const termSet = new Set<string>()
+      // A renamed bundle's new name has no frequency of its own; carry its anchor's.
+      const freqOf = { ...freqMap }
       for (const b of state.bundles) {
-        if (b.decision !== 'reject') termSet.add(b.anchor)
+        if (b.decision === 'reject') continue
+        const name = nameOf(b)
+        termSet.add(name)
+        freqOf[name] ??= freqMap[b.anchor] ?? 0
       }
       for (const t of Object.keys(freqMap)) {
         if (!remapKeys.has(t) && !rejectedTerms.has(t)) termSet.add(t)
       }
       const canonicalTerms: TermRow[] = Array.from(termSet).map((term) => ({
         term,
-        frequency: freqMap[term] ?? 0,
+        frequency: freqOf[term] ?? 0,
       }))
       const recodedEdges = allEdges
         // Rejected terms never go through `remap` (only accept/no-decision bundles do),

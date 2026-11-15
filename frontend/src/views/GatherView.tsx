@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import type { AppState, ModelConfig } from '../lib/types'
 import type { AppAction } from '../lib/state'
 import { validateFile, testModel } from '../lib/api'
+import { WORKSHOP_ID } from '../lib/constants'
 import { PhaseHeader } from '../components/hive/PhaseHeader'
 import { Button } from '../components/ui/Button'
 import { Icon } from '../components/ui/Icon'
@@ -318,7 +319,7 @@ export function GatherView({ state, dispatch }: GatherViewProps) {
           {/* Upload slots */}
           {state.contributors.length > 0 && (
             <div className="rounded-card border border-canon-border bg-canon-paper-bright px-5 py-4 space-y-4">
-              {state.contributors.map((c) => {
+              {state.contributors.filter((c) => c.id !== WORKSHOP_ID).map((c) => {
                 const slotState = slotStates[c.id] ?? 'idle'
                 const error = slotErrors[c.id]
                 return (

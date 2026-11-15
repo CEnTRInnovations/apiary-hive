@@ -24,6 +24,7 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
   const [aiNote, setAiNote] = useState<string | null>(null)
   const [reviewingBundleId, setReviewingBundleId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [newTerm, setNewTerm] = useState('')
   const mapRef = useRef<HTMLDivElement>(null)
   // The AI call can take a while; the note should describe the bundles as they are when it
   // returns, not as they were when the button was clicked.
@@ -88,6 +89,15 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
     const [target, ...rest] = ids
     for (const sourceBundleId of rest) dispatch({ type: 'MERGE_BUNDLE', sourceBundleId, targetBundleId: target })
     setSelectedIds(new Set())
+  }
+
+  const trimmedNewTerm = newTerm.trim()
+  const newTermExists = allTerms.some((t) => t.term.toLowerCase() === trimmedNewTerm.toLowerCase())
+
+  function handleAddTerm() {
+    if (!trimmedNewTerm || newTermExists) return
+    dispatch({ type: 'ADD_WORKSHOP_TERM', term: trimmedNewTerm })
+    setNewTerm('')
   }
 
   function handleMarkAllAccept() {
@@ -195,6 +205,30 @@ export function ConsolidateView({ state, dispatch }: ConsolidateViewProps) {
       )}
 
       {reviewError && <p className="text-canon-signal text-sm mt-2">{reviewError}</p>}
+
+      {/* Terms that surface in conversation across groups. They're recorded as coming from the
+          "Workshop", not from any group's map, and can be bundled or used as a bundle's name. */}
+      {state.bundles.length > 0 && (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newTerm}
+              onChange={(e) => setNewTerm(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddTerm()}
+              placeholder="A term that came up in conversation…"
+              aria-label="Add a term"
+              className="flex-1 rounded-control border border-canon-border bg-canon-paper-bright px-3 py-1.5 text-sm text-canon-foreground placeholder:text-canon-muted/60 focus:outline-none focus:ring-1 focus:ring-canon-denim"
+            />
+            <Button variant="ghost" size="sm" onClick={handleAddTerm} disabled={!trimmedNewTerm || newTermExists}>
+              Add term
+            </Button>
+          </div>
+          {newTermExists && trimmedNewTerm && (
+            <p className="text-xs text-canon-muted">“{trimmedNewTerm}” is already in the list.</p>
+          )}
+        </div>
+      )}
 
       {/* Suggested duplicates (2+ terms) get full review cards in an accordion. Unbundled
           terms are the common case, so they stay out in the open with checkboxes: tick

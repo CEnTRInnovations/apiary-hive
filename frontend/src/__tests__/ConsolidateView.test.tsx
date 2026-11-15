@@ -57,4 +57,20 @@ describe('ConsolidateView', () => {
     expect(screen.getByText('Unbundled Terms (1)')).toBeInTheDocument()
     expect(bundleBtn()).toBeNull()
   })
+
+  it('adds a workshop term as an unbundled row and rejects duplicates', () => {
+    render(<Harness />)
+    const input = screen.getByRole('textbox', { name: 'Add a term' })
+    fireEvent.change(input, { target: { value: 'belonging' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add term' }))
+
+    expect(screen.getByText('belonging')).toBeInTheDocument()
+    expect(screen.getByText('Unbundled Terms (4)')).toBeInTheDocument()
+    expect(input).toHaveValue('')
+
+    // Typing a term that exists (any case) is blocked with a message
+    fireEvent.change(input, { target: { value: 'Belonging' } })
+    expect(screen.getByRole('button', { name: 'Add term' })).toBeDisabled()
+    expect(screen.getByText(/already in the list/)).toBeInTheDocument()
+  })
 })
