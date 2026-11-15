@@ -43,6 +43,9 @@ class BundleRead(BaseModel):
     semantic: float
     ai_review_json: dict | None = None
     weak_pairs: list[tuple[str, str]] = []
+    # How the AI scored this run (model, question, threshold) — None for string-similarity runs.
+    # Carried into the provenance export so the AI's part is inspectable.
+    ai_run: dict | None = None
 
 
 class BundleReviewRequest(BaseModel):

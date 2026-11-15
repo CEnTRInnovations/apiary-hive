@@ -160,6 +160,12 @@ async def test_compute_bundles_owner_token_uses_default_decision_model(monkeypat
         "model": "default-decision-model",
         "api_key": "default-key",
     }
+    # The run is recorded on every bundle so the export can say what scored it.
+    run = resp.json()[0]["ai_run"]
+    assert run["model"] == "default-decision-model"
+    assert run["question"] == "same_heading"
+    assert run["sem_thresh"] == 0.65
+    assert "same" in run["question_text"]
 
 
 @pytest.mark.asyncio

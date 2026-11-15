@@ -93,3 +93,12 @@ async def test_choose_anchor_returns_none_on_failure(monkeypatch):
     result = await nlp.choose_anchor(["plane", "airplane"], model="x", api_key="k")
 
     assert result is None
+
+
+def test_heading_question_rules_out_opposites():
+    # Merging power/powerless would flip the meaning of every +/- edge touching them, since
+    # FINALIZE remaps term names but never the edge effect. Measured live: this clause took
+    # opposite pairs (trust/distrust, access/barriers, ...) from 0.46-0.85 down to <= 0.07.
+    q = nlp.SAME_HEADING_QUESTION["same_heading"]
+    assert "opposite" in q["instructions"]
+    assert "opposite" in q["criteria"]["false"]

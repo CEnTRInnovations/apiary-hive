@@ -72,4 +72,14 @@ describe('buildEdgesCsv', () => {
     expect(csv).toContain('from,to,weight,effect,contributor_id')
     expect(csv).toContain('"community","trust",1,1,"C01"')
   })
+
+  it('records what the AI scored each bundle with, and the bundle score', () => {
+    const ai_run = { method: 'decision_model', model: 'm', question: 'same_heading', question_text: 'q', sem_thresh: 0.65 }
+    const state = { ...mockState, bundles: [{ ...mockState.bundles[0], ai_suggested: true, ai_run }] }
+    const b = JSON.parse(buildProvenanceJson(state)).bundles[0]
+    expect(b.ai_run).toEqual(ai_run)
+    expect(b.sim_score).toBe(0.8)
+    // No AI run => explicit null, not a missing key.
+    expect(JSON.parse(buildProvenanceJson(mockState)).bundles[0].ai_run).toBeNull()
+  })
 })

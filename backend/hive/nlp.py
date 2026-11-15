@@ -96,11 +96,15 @@ SAME_HEADING_QUESTION = {
             "research workshop. When consolidating the vocabulary, would a research team "
             "reasonably file them under one shared heading — because they name the same "
             "concept, or play the same role as facets of one idea — rather than being clearly "
-            "different things that should stay separate?"
+            "different things that should stay separate? A concept and its opposite or "
+            "absence (for example 'safe' and 'unsafe', or 'access' and 'barriers to "
+            "access') are NOT the same heading: in a causal map they sit at opposite ends "
+            "of one scale, and merging them would reverse the meaning of every arrow they "
+            "touch."
         ),
         "criteria": {
             "true": "Reasonable to bundle under one heading.",
-            "false": "Clearly different concepts that should stay separate.",
+            "false": "Clearly different concepts, or a concept and its opposite or absence.",
         },
     }
 }

@@ -23,10 +23,12 @@ export function buildProvenanceJson(state: AppState): string {
       bundle_id: b.bundle_id,
       anchor: b.anchor,
       label: b.label,
+      sim_score: b.sim_score,
       members: b.members,
       decision: b.decision,
       ai_review: b.ai_review_json ?? null,
       ai_suggested: b.ai_suggested ?? false,
+      ai_run: b.ai_run ?? null,
     })),
     canonical_terms: state.canonicalTerms.map((t) => t.term),
     recoded_edges: state.recodedEdges.map((e) => ({

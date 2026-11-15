@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from itertools import combinations
 
@@ -27,6 +28,26 @@ class Bundle:
     # members are similar on average (average-linkage), not pairwise. Non-empty means some
     # members were not directly verified against each other. Detection only.
     weak_pairs: list[tuple[str, str]] = field(default_factory=list)
+
+
+def _stem_word(w: str) -> str:
+    # ponytail: crude suffix stripper, not a real stemmer — enough for funds/funding,
+    # attendant/attendants, house/housing. Wrongly equates rare pairs like train/training;
+    # a human reviews every bundle. Swap in nltk's Snowball if misses/false hits pile up.
+    if w.endswith("ies") and len(w) > 4:
+        return w[:-3] + "y"
+    for suf in ("ing", "ed", "es"):
+        if w.endswith(suf) and len(w) - len(suf) >= 3:
+            w = w[: -len(suf)]
+            break
+    else:
+        if w.endswith("s") and not w.endswith("ss") and len(w) > 3:
+            w = w[:-1]
+    return w[:-1] if w.endswith("e") and len(w) > 3 else w
+
+
+def _stems(term: str) -> tuple[str, ...]:
+    return tuple(_stem_word(w) for w in re.findall(r"[a-z0-9]+", term.lower()))
 
 
 def _jaccard(a: set[str], b: set[str]) -> float:
@@ -106,6 +127,11 @@ def compute_bundles(
             sem = embedding_sim[key]
         else:
             sem = rfd.JaroWinkler.normalized_similarity(a, b)
+        # Spelling variants are decided by code, not the model: a decision model once scored
+        # funds/funding 0.30 on a strict "same term?" question. Same word stems => same term.
+        # Deliberately not a Jaro-Winkler floor — health/wealth score 0.89 on that.
+        if _stems(a) and _stems(a) == _stems(b):
+            sem = 1.0
         pair_scores[key] = (struct, sem)
     # ponytail: semantic-only gate. struct (causal-graph neighbor overlap) never produced a
     # correct positive in testing — only false positives (airport/pilot, driver/road) — so it

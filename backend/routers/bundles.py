@@ -17,7 +17,7 @@ from schemas.bundles import (
 router = APIRouter()
 
 
-def _to_read(b) -> BundleRead:
+def _to_read(b, ai_run: dict | None = None) -> BundleRead:
     return BundleRead(
         bundle_id=b.id,
         anchor=b.anchor,
@@ -29,6 +29,7 @@ def _to_read(b) -> BundleRead:
         semantic=b.semantic,
         ai_review_json=b.ai_review,
         weak_pairs=b.weak_pairs,
+        ai_run=ai_run,
     )
 
 
@@ -51,6 +52,7 @@ async def compute_bundles_route(
 
     term_list = terms_df["term"].tolist()
     embedding_sim = None
+    ai_run: dict | None = None
     if body.ai:
         if is_owner and settings.openrouter_api_key:
             # Decisions API is OpenRouter-specific (alpha endpoint, not a generic OpenAI-compat
@@ -62,6 +64,13 @@ async def compute_bundles_route(
                 api_key=settings.openrouter_api_key,
                 question=SAME_HEADING_QUESTION,
             )
+            ai_run = {
+                "method": "decision_model",
+                "model": settings.openrouter_decision_model,
+                "question": "same_heading",
+                "question_text": SAME_HEADING_QUESTION["same_heading"]["instructions"],
+                "anchors_chosen_by_model": True,
+            }
         elif body.llm_config and body.llm_config.endpoint:
             from hive.nlp import cosine_sim_matrix, get_embeddings
             raw = await get_embeddings(
@@ -70,6 +79,7 @@ async def compute_bundles_route(
                 model=body.llm_config.model,
                 api_key=body.llm_config.api_key or None,
             )
+            ai_run = {"method": "embedding_cosine", "model": body.llm_config.model}
             if raw is not None:
                 matrix = cosine_sim_matrix(raw)
                 keys = list(raw.keys())
@@ -86,6 +96,9 @@ async def compute_bundles_route(
                     "Settings, to get AI suggestions."
                 ),
             )
+        if ai_run is not None:
+            ai_run["sem_thresh"] = body.sem_thresh
+            ai_run["spelling_variants"] = "terms sharing word stems were bundled by rule, whatever the model scored"
         # Returning string-similarity bundles under an "AI suggestions" label would mislead.
         if embedding_sim is None:
             raise HTTPException(status_code=502, detail="The AI model did not respond. Try again.")
@@ -113,7 +126,7 @@ async def compute_bundles_route(
             if choice is not None:
                 b.anchor = choice
 
-    return [_to_read(b) for b in bundles]
+    return [_to_read(b, ai_run) for b in bundles]
 
 
 @router.post("/bundles/review")

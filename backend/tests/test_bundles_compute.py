@@ -68,3 +68,24 @@ def test_compute_bundles_fully_verified_bundle_has_no_weak_pairs():
     )
     assert len(result) == 1
     assert result[0].weak_pairs == []
+
+
+def test_spelling_variants_bundle_even_when_the_model_says_no():
+    # A decision model scored funds/funding 0.30; the stem rule must override it.
+    # health/wealth look alike (Jaro-Winkler 0.89) but are different words: model's 0.1 stands.
+    edges = pd.DataFrame({"from": ["funds", "health"], "to": ["x", "y"], "weight": 1.0})
+    terms = pd.DataFrame({
+        "term": ["funds", "funding", "health", "wealth", "Flight Attendant", "flight attendants"],
+        "frequency": [1] * 6,
+    })
+    embedding_sim = {
+        ("funding", "funds"): 0.3,
+        ("health", "wealth"): 0.1,
+        ("Flight Attendant", "flight attendants"): 0.2,
+    }
+    result = compute_bundles(
+        edges, terms, sem_thresh=0.65, struct_thresh=0.48, embedding_sim=embedding_sim,
+    )
+    members = sorted(sorted(b.members) for b in result if len(b.members) > 1)
+    assert members == [["Flight Attendant", "flight attendants"], ["funding", "funds"]]
+
